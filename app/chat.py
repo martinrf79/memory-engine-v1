@@ -6,6 +6,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db
+from app.llm_service import generate_answer_from_memories, get_user_llm_settings
 from app.models import Memory
 from app.utils import new_memory_id, utc_now_iso
 
@@ -92,12 +93,8 @@ def build_chat_result(payload: ChatRequest, memories: list[Memory]) -> dict:
                 "options": book_ids,
             }
 
-    context_parts = [memory.summary for memory in memories if memory.summary]
-
-    if len(context_parts) == 1:
-        answer_text = f"Según la memoria encontrada: {context_parts[0]}"
-    else:
-        answer_text = "Según las memorias encontradas: " + " | ".join(context_parts)
+    settings = get_user_llm_settings(payload.user_id)
+    answer_text = generate_answer_from_memories(settings, payload.message, memories)
 
     return {
         "mode": "answer",
