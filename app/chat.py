@@ -1,7 +1,7 @@
-from typing import Optional
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, StringConstraints
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
@@ -11,12 +11,15 @@ from app.utils import new_memory_id, utc_now_iso
 
 router = APIRouter()
 
+NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+OptionalNonEmptyStr = Annotated[Optional[str], StringConstraints(strip_whitespace=True, min_length=1)]
+
 
 class ChatRequest(BaseModel):
-    user_id: str
-    message: str
-    project: Optional[str] = None
-    book_id: Optional[str] = None
+    user_id: NonEmptyStr
+    message: NonEmptyStr
+    project: OptionalNonEmptyStr = None
+    book_id: OptionalNonEmptyStr = None
     save_interaction: bool = False
 
 
@@ -100,4 +103,4 @@ def chat(payload: ChatRequest, db: Session = Depends(get_db)):
         "mode": mode,
         "answer": answer_text,
         "used_memories": used,
-}
+    }
