@@ -18,15 +18,15 @@ def run():
         valid_payload = {
             "id": str(uuid4()),
             "user_id": "user-1",
-            "project": "test-project",
+            "project": "project-a",
             "book_id": "general",
             "memory_type": "note",
             "status": "active",
-            "content": "Memoria de prueba",
-            "summary": "Resumen de prueba",
+            "content": "Memoria de prueba sobre cosecha",
+            "summary": "Resumen de prueba sobre cosecha",
             "user_message": "Guardar prueba",
             "assistant_answer": "Prueba guardada",
-            "trigger_query": "prueba",
+            "trigger_query": "cosecha",
             "importance": 1,
             "keywords_json": None,
             "embedding_json": None,
@@ -45,16 +45,49 @@ def run():
 
         search_response = client.post(
             "/memories/search",
-            json={"user_id": "user-1", "query": "prueba"},
+            json={"user_id": "user-1", "query": "cosecha"},
         )
         assert search_response.status_code == 200
         assert len(search_response.json()) >= 1
 
         chat_response = client.post(
             "/chat",
-            json={"user_id": "user-1", "message": "prueba", "save_interaction": False},
+            json={"user_id": "user-1", "message": "cosecha", "save_interaction": False},
         )
         assert chat_response.status_code == 200
+        assert chat_response.json()["mode"] == "answer"
+
+        second_payload = dict(valid_payload)
+        second_payload["id"] = str(uuid4())
+        second_payload["project"] = "project-b"
+        second_payload["summary"] = "Resumen alternativo sobre cosecha"
+        second_payload["content"] = "Otra memoria de prueba sobre cosecha"
+        second_payload["assistant_answer"] = "Prueba guardada en otro proyecto"
+
+        second_create_response = client.post("/memories", json=second_payload)
+        assert second_create_response.status_code == 200
+
+        ambiguous_chat_response = client.post(
+            "/chat",
+            json={"user_id": "user-1", "message": "cosecha", "save_interaction": False},
+        )
+        assert ambiguous_chat_response.status_code == 200
+        ambiguous_data = ambiguous_chat_response.json()
+        assert ambiguous_data["mode"] == "clarification_required"
+        assert "project-a" in ambiguous_data["options"]
+        assert "project-b" in ambiguous_data["options"]
+
+        explicit_project_chat_response = client.post(
+            "/chat",
+            json={
+                "user_id": "user-1",
+                "project": "project-a",
+                "message": "cosecha",
+                "save_interaction": False,
+            },
+        )
+        assert explicit_project_chat_response.status_code == 200
+        assert explicit_project_chat_response.json()["mode"] == "answer"
 
         invalid_type_payload = dict(valid_payload)
         invalid_type_payload["id"] = str(uuid4())
