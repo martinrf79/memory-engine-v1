@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.chat import router as chat_router
 from app.db import Base, engine
 from app.export_memories import router as export_memories_router
 from app.manage_memories import router as manage_memories_router
@@ -26,3 +27,4 @@ app.include_router(memories_router)
 app.include_router(search_router)
 app.include_router(manage_memories_router)
 app.include_router(export_memories_router)
+app.include_router(chat_router)
