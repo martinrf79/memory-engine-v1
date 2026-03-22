@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from app.db import Base, engine
+from app.export_memories import router as export_memories_router
 from app.manage_memories import router as manage_memories_router
 from app.memories import router as memories_router
 from app.search import router as search_router
@@ -24,3 +25,4 @@ def health():
 app.include_router(memories_router)
 app.include_router(search_router)
 app.include_router(manage_memories_router)
+app.include_router(export_memories_router)
