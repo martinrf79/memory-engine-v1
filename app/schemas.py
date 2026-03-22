@@ -1,19 +1,25 @@
-from typing import Optional
+from datetime import datetime
+from typing import Annotated, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator
+
+from app.enums import MemoryStatus, MemoryType
+
+NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+OptionalNonEmptyStr = Annotated[Optional[str], StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 class MemoryBase(BaseModel):
-    user_id: str
-    project: str
-    book_id: str
-    memory_type: str
-    status: str = "active"
-    content: str
-    summary: str
-    user_message: str
-    assistant_answer: str
-    trigger_query: str
+    user_id: NonEmptyStr
+    project: NonEmptyStr
+    book_id: NonEmptyStr
+    memory_type: MemoryType
+    status: MemoryStatus = MemoryStatus.active
+    content: NonEmptyStr
+    summary: NonEmptyStr
+    user_message: NonEmptyStr
+    assistant_answer: NonEmptyStr
+    trigger_query: NonEmptyStr
     importance: Optional[int] = None
     keywords_json: Optional[str] = None
     embedding_json: Optional[str] = None
@@ -21,26 +27,52 @@ class MemoryBase(BaseModel):
     created_at: str
     updated_at: Optional[str] = None
 
+    @field_validator("created_at", "updated_at")
+    @classmethod
+    def validate_datetime_string(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError("must be a valid ISO 8601 datetime") from exc
+
+        return parsed.isoformat().replace("+00:00", "Z")
+
 
 class MemoryCreate(MemoryBase):
-    id: str
+    id: NonEmptyStr
 
 
 class MemoryUpdate(BaseModel):
-    project: Optional[str] = None
-    book_id: Optional[str] = None
-    memory_type: Optional[str] = None
-    status: Optional[str] = None
-    content: Optional[str] = None
-    summary: Optional[str] = None
-    user_message: Optional[str] = None
-    assistant_answer: Optional[str] = None
-    trigger_query: Optional[str] = None
+    project: OptionalNonEmptyStr = None
+    book_id: OptionalNonEmptyStr = None
+    memory_type: Optional[MemoryType] = None
+    status: Optional[MemoryStatus] = None
+    content: OptionalNonEmptyStr = None
+    summary: OptionalNonEmptyStr = None
+    user_message: OptionalNonEmptyStr = None
+    assistant_answer: OptionalNonEmptyStr = None
+    trigger_query: OptionalNonEmptyStr = None
     importance: Optional[int] = None
     keywords_json: Optional[str] = None
     embedding_json: Optional[str] = None
     source: Optional[str] = None
     updated_at: Optional[str] = None
+
+    @field_validator("updated_at")
+    @classmethod
+    def validate_updated_at(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError("must be a valid ISO 8601 datetime") from exc
+
+        return parsed.isoformat().replace("+00:00", "Z")
 
 
 class MemoryResponse(MemoryBase):
