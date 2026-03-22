@@ -43,7 +43,7 @@ jobs:
 
       - name: Smoke test endpoints
         run: |
-          python app/smoke_test.py
+          python -m app.smoke_test
 
       - name: Docker build
         run: |
