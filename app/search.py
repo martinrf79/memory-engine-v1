@@ -1,24 +1,27 @@
-from typing import Optional
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, StringConstraints
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db
+from app.enums import MemoryStatus, MemoryType
 from app.models import Memory
 from app.schemas import MemoryResponse
 
 router = APIRouter()
 
+FilterStr = Annotated[Optional[str], StringConstraints(strip_whitespace=True, min_length=1)]
+
 
 class MemorySearchRequest(BaseModel):
-    user_id: Optional[str] = None
-    project: Optional[str] = None
-    book_id: Optional[str] = None
-    memory_type: Optional[str] = None
-    status: Optional[str] = None
-    query: Optional[str] = None
+    user_id: FilterStr = None
+    project: FilterStr = None
+    book_id: FilterStr = None
+    memory_type: Optional[MemoryType] = None
+    status: Optional[MemoryStatus] = None
+    query: FilterStr = None
 
 
 @router.post("/memories/search", response_model=list[MemoryResponse])
