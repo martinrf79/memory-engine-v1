@@ -1,5 +1,4 @@
 from app.llm_settings import UserLLMSettings
-from app.models import Memory
 
 
 def get_user_llm_settings(user_id: str) -> UserLLMSettings:
@@ -9,9 +8,9 @@ def get_user_llm_settings(user_id: str) -> UserLLMSettings:
 def generate_answer_from_memories(
     settings: UserLLMSettings,
     user_message: str,
-    memories: list[Memory],
+    memories: list[dict],
 ) -> str:
-    summaries = [memory.summary for memory in memories if memory.summary]
+    summaries = [memory.get("summary") for memory in memories if memory.get("summary")]
 
     if not summaries:
         return "No tengo memoria suficiente para responder con seguridad."
