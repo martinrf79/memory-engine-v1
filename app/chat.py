@@ -2,14 +2,12 @@ import re
 import unicodedata
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from pydantic import BaseModel, Field, StringConstraints
-from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
 
-from app.dependencies import get_db
+from app.firestore_store import collection
+from app.firestore_utils import memory_dict_from_firestore
 from app.llm_service import generate_answer_from_memories, get_user_llm_settings
-from app.models import Memory
 from app.utils import new_memory_id, utc_now_iso
 
 router = APIRouter()
@@ -20,7 +18,7 @@ OptionalNonEmptyStr = Annotated[Optional[str], StringConstraints(strip_whitespac
 STOPWORDS = {
     "que", "qué", "como", "cómo", "para", "por", "con", "sin", "una", "uno", "unos",
     "unas", "sobre", "desde", "hasta", "donde", "dónde", "cuando", "cuándo", "cual",
-    "cuál", "cuales", "cuáles", "del", "las", "los", "por", "hay", "fue", "son",
+    "cuál", "cuales", "cuáles", "del", "las", "los", "hay", "fue", "son",
     "esta", "este", "estos", "estas", "de", "la", "el", "y", "o", "a", "en"
 }
 
@@ -67,43 +65,47 @@ def extract_keywords(message: str) -> list[str]:
     return keywords
 
 
-def retrieve_memories(payload: ChatRequest, db: Session) -> list[Memory]:
-    db_query = db.query(Memory).filter(
-        Memory.user_id == payload.user_id,
-        Memory.status == "active",
-    )
-
-    if payload.project:
-        db_query = db_query.filter(Memory.project == payload.project)
-
-    if payload.book_id:
-        db_query = db_query.filter(Memory.book_id == payload.book_id)
+def retrieve_memories(payload: ChatRequest) -> list[dict]:
+    docs = collection.stream()
+    items = [memory_dict_from_firestore(doc) for doc in docs]
 
     keywords = extract_keywords(payload.message)
-
     if not keywords:
         keywords = [normalize_text(payload.message)]
 
-    conditions = []
-    for keyword in keywords:
-        conditions.extend(
-            [
-                func.lower(Memory.content).contains(keyword),
-                func.lower(Memory.summary).contains(keyword),
-                func.lower(Memory.trigger_query).contains(keyword),
-                func.lower(Memory.user_message).contains(keyword),
-                func.lower(Memory.assistant_answer).contains(keyword),
-                func.lower(Memory.project).contains(keyword),
-                func.lower(Memory.book_id).contains(keyword),
-            ]
+    results = []
+
+    for item in items:
+        if item.get("user_id") != payload.user_id:
+            continue
+        if item.get("status") != "active":
+            continue
+        if payload.project and item.get("project") != payload.project:
+            continue
+        if payload.book_id and item.get("book_id") != payload.book_id:
+            continue
+
+        haystack = normalize_text(
+            " ".join(
+                [
+                    item.get("content") or "",
+                    item.get("summary") or "",
+                    item.get("trigger_query") or "",
+                    item.get("user_message") or "",
+                    item.get("assistant_answer") or "",
+                    item.get("project") or "",
+                    item.get("book_id") or "",
+                ]
+            )
         )
 
-    db_query = db_query.filter(or_(*conditions))
+        if any(keyword in haystack for keyword in keywords):
+            results.append(item)
 
-    return db_query.limit(10).all()
+    return results[:10]
 
 
-def build_chat_result(payload: ChatRequest, memories: list[Memory]) -> dict:
+def build_chat_result(payload: ChatRequest, memories: list[dict]) -> dict:
     if not memories:
         return {
             "mode": "insufficient_memory",
@@ -112,10 +114,10 @@ def build_chat_result(payload: ChatRequest, memories: list[Memory]) -> dict:
             "options": [],
         }
 
-    used = [{"id": memory.id, "summary": memory.summary} for memory in memories]
+    used = [{"id": memory["id"], "summary": memory.get("summary", "")} for memory in memories]
 
     if not payload.project:
-        projects = sorted({memory.project for memory in memories if memory.project})
+        projects = sorted({memory.get("project") for memory in memories if memory.get("project")})
         if len(projects) > 1:
             return {
                 "mode": "clarification_required",
@@ -125,7 +127,7 @@ def build_chat_result(payload: ChatRequest, memories: list[Memory]) -> dict:
             }
 
     if not payload.book_id:
-        book_ids = sorted({memory.book_id for memory in memories if memory.book_id})
+        book_ids = sorted({memory.get("book_id") for memory in memories if memory.get("book_id")})
         if len(book_ids) > 1:
             return {
                 "mode": "clarification_required",
@@ -145,39 +147,40 @@ def build_chat_result(payload: ChatRequest, memories: list[Memory]) -> dict:
     }
 
 
-def save_chat_interaction(payload: ChatRequest, result: dict, db: Session) -> None:
+def save_chat_interaction(payload: ChatRequest, result: dict) -> None:
     if not payload.save_interaction:
         return
 
     now = utc_now_iso()
     options_text = ", ".join(result["options"]) if result["options"] else ""
 
-    conversation_memory = Memory(
-        id=new_memory_id(),
-        user_id=payload.user_id,
-        project=payload.project or "general",
-        book_id=payload.book_id or "general",
-        memory_type="conversation",
-        status="active",
-        content=f"Usuario: {payload.message}\nAsistente: {result['answer']}\nOpciones: {options_text}",
-        summary=f"{result['mode']}: {payload.message[:80]}",
-        user_message=payload.message,
-        assistant_answer=result["answer"],
-        trigger_query=payload.message,
-        importance=None,
-        keywords_json=None,
-        embedding_json=None,
-        source="chat",
-        created_at=now,
-        updated_at=None,
+    doc_ref = collection.document(new_memory_id())
+    doc_ref.set(
+        {
+            "id": doc_ref.id,
+            "user_id": payload.user_id,
+            "project": payload.project or "general",
+            "book_id": payload.book_id or "general",
+            "memory_type": "conversation",
+            "status": "active",
+            "content": f"Usuario: {payload.message}\nAsistente: {result['answer']}\nOpciones: {options_text}",
+            "summary": f"{result['mode']}: {payload.message[:80]}",
+            "user_message": payload.message,
+            "assistant_answer": result["answer"],
+            "trigger_query": payload.message,
+            "importance": None,
+            "keywords_json": None,
+            "embedding_json": None,
+            "source": "chat",
+            "created_at": now,
+            "updated_at": None,
+        }
     )
-    db.add(conversation_memory)
-    db.commit()
 
 
 @router.post("/chat", response_model=ChatResponse)
-def chat(payload: ChatRequest, db: Session = Depends(get_db)):
-    memories = retrieve_memories(payload, db)
+def chat(payload: ChatRequest):
+    memories = retrieve_memories(payload)
     result = build_chat_result(payload, memories)
-    save_chat_interaction(payload, result, db)
+    save_chat_interaction(payload, result)
     return result
