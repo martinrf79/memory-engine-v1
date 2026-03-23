@@ -1,13 +1,10 @@
+from fastapi import APIRouter
+from pydantic import BaseModel, StringConstraints
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel, StringConstraints
-from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
-
-from app.dependencies import get_db
 from app.enums import MemoryStatus, MemoryType
-from app.models import Memory
+from app.firestore_store import collection
+from app.firestore_utils import memory_dict_from_firestore
 from app.schemas import MemoryResponse
 
 router = APIRouter()
@@ -25,30 +22,39 @@ class MemorySearchRequest(BaseModel):
 
 
 @router.post("/memories/search", response_model=list[MemoryResponse])
-def search_memories(payload: MemorySearchRequest, db: Session = Depends(get_db)):
-    db_query = db.query(Memory)
+def search_memories(payload: MemorySearchRequest):
+    docs = collection.stream()
+    items = [memory_dict_from_firestore(doc) for doc in docs]
 
-    if payload.user_id:
-        db_query = db_query.filter(Memory.user_id == payload.user_id)
-    if payload.project:
-        db_query = db_query.filter(Memory.project == payload.project)
-    if payload.book_id:
-        db_query = db_query.filter(Memory.book_id == payload.book_id)
-    if payload.memory_type:
-        db_query = db_query.filter(Memory.memory_type == payload.memory_type)
-    if payload.status:
-        db_query = db_query.filter(Memory.status == payload.status)
+    results = []
+    text_query = payload.query.lower() if payload.query else None
 
-    if payload.query:
-        q = payload.query.lower()
-        db_query = db_query.filter(
-            or_(
-                func.lower(Memory.content).contains(q),
-                func.lower(Memory.summary).contains(q),
-                func.lower(Memory.trigger_query).contains(q),
-                func.lower(Memory.user_message).contains(q),
-                func.lower(Memory.assistant_answer).contains(q),
-            )
-        )
+    for item in items:
+        if payload.user_id and item.get("user_id") != payload.user_id:
+            continue
+        if payload.project and item.get("project") != payload.project:
+            continue
+        if payload.book_id and item.get("book_id") != payload.book_id:
+            continue
+        if payload.memory_type and item.get("memory_type") != payload.memory_type.value:
+            continue
+        if payload.status and item.get("status") != payload.status.value:
+            continue
 
-    return db_query.all()
+        if text_query:
+            haystack = " ".join(
+                [
+                    item.get("content") or "",
+                    item.get("summary") or "",
+                    item.get("trigger_query") or "",
+                    item.get("user_message") or "",
+                    item.get("assistant_answer") or "",
+                ]
+            ).lower()
+
+            if text_query not in haystack:
+                continue
+
+        results.append(item)
+
+    return results
