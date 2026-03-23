@@ -2,13 +2,13 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from app.db import Base, engine
+from app.firestore_store import collection
 from app.main import app
 
 
 def run():
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    if hasattr(collection, "clear"):
+        collection.clear()
 
     with TestClient(app) as client:
         response = client.get("/health")
@@ -52,7 +52,12 @@ def run():
 
         chat_response = client.post(
             "/chat",
-            json={"user_id": "user-1", "message": "cosecha", "save_interaction": False},
+            json={
+                "user_id": "user-1",
+                "project": "project-a",
+                "message": "cosecha",
+                "save_interaction": False,
+            },
         )
         assert chat_response.status_code == 200
         assert chat_response.json()["mode"] == "answer"
