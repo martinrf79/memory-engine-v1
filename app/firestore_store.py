@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
+import os
 
+from google.auth.exceptions import DefaultCredentialsError
 from google.cloud import firestore
 
 
@@ -54,12 +55,39 @@ class FakeCollection:
         self._store.clear()
 
 
-def build_collection() -> Any:
-    try:
-        client = firestore.Client()
-        return client.collection("memories")
-    except Exception:
-        return FakeCollection()
+class CollectionProxy:
+    def __init__(self):
+        self._fake = FakeCollection()
+        self._real = None
+        self._use_fake = None
+
+    def _get_collection(self):
+        if os.getenv("GITHUB_ACTIONS") == "true":
+            return self._fake
+
+        if self._use_fake is True:
+            return self._fake
+
+        if self._real is not None:
+            return self._real
+
+        try:
+            client = firestore.Client()
+            self._real = client.collection("memories")
+            self._use_fake = False
+            return self._real
+        except DefaultCredentialsError:
+            self._use_fake = True
+            return self._fake
+
+    def document(self, doc_id: str):
+        return self._get_collection().document(doc_id)
+
+    def stream(self):
+        return self._get_collection().stream()
+
+    def clear(self) -> None:
+        self._fake.clear()
 
 
-collection = build_collection()
+collection = CollectionProxy()
