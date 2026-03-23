@@ -1,3 +1,5 @@
+import re
+import unicodedata
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends
@@ -14,6 +16,13 @@ router = APIRouter()
 
 NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 OptionalNonEmptyStr = Annotated[Optional[str], StringConstraints(strip_whitespace=True, min_length=1)]
+
+STOPWORDS = {
+    "que", "qué", "como", "cómo", "para", "por", "con", "sin", "una", "uno", "unos",
+    "unas", "sobre", "desde", "hasta", "donde", "dónde", "cuando", "cuándo", "cual",
+    "cuál", "cuales", "cuáles", "del", "las", "los", "por", "hay", "fue", "son",
+    "esta", "este", "estos", "estas", "de", "la", "el", "y", "o", "a", "en"
+}
 
 
 class ChatRequest(BaseModel):
@@ -36,6 +45,28 @@ class ChatResponse(BaseModel):
     options: list[str] = Field(default_factory=list)
 
 
+def normalize_text(text: str) -> str:
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    return text.lower()
+
+
+def extract_keywords(message: str) -> list[str]:
+    normalized = normalize_text(message)
+    words = re.findall(r"\b\w+\b", normalized)
+    keywords = []
+
+    for word in words:
+        if len(word) < 3:
+            continue
+        if word in STOPWORDS:
+            continue
+        if word not in keywords:
+            keywords.append(word)
+
+    return keywords
+
+
 def retrieve_memories(payload: ChatRequest, db: Session) -> list[Memory]:
     db_query = db.query(Memory).filter(
         Memory.user_id == payload.user_id,
@@ -48,16 +79,26 @@ def retrieve_memories(payload: ChatRequest, db: Session) -> list[Memory]:
     if payload.book_id:
         db_query = db_query.filter(Memory.book_id == payload.book_id)
 
-    q = payload.message.lower()
-    db_query = db_query.filter(
-        or_(
-            func.lower(Memory.content).contains(q),
-            func.lower(Memory.summary).contains(q),
-            func.lower(Memory.trigger_query).contains(q),
-            func.lower(Memory.user_message).contains(q),
-            func.lower(Memory.assistant_answer).contains(q),
+    keywords = extract_keywords(payload.message)
+
+    if not keywords:
+        keywords = [normalize_text(payload.message)]
+
+    conditions = []
+    for keyword in keywords:
+        conditions.extend(
+            [
+                func.lower(Memory.content).contains(keyword),
+                func.lower(Memory.summary).contains(keyword),
+                func.lower(Memory.trigger_query).contains(keyword),
+                func.lower(Memory.user_message).contains(keyword),
+                func.lower(Memory.assistant_answer).contains(keyword),
+                func.lower(Memory.project).contains(keyword),
+                func.lower(Memory.book_id).contains(keyword),
+            ]
         )
-    )
+
+    db_query = db_query.filter(or_(*conditions))
 
     return db_query.limit(10).all()
 
