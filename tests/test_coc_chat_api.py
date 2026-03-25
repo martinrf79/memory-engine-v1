@@ -39,7 +39,7 @@ def test_coc_chat_flow():
         "user_id": "martin",
         "project": project_name,
         "book_id": "general",
-        "memory_type": "rule",
+        "memory_type": "note",
         "status": "active",
         "content": "Si no hay memoria suficiente, el sistema no debe inventar.",
         "summary": "No inventar cuando falte memoria.",
@@ -54,14 +54,12 @@ def test_coc_chat_flow():
         "updated_at": None
     }
 
-    # Crear memorias base
     r0 = requests.post(f"{BASE_URL}/memories", json=payload_1, timeout=20)
     assert r0.status_code in (200, 201)
 
     r1 = requests.post(f"{BASE_URL}/memories", json=payload_2, timeout=20)
     assert r1.status_code in (200, 201)
 
-    # Chat con memoria clara
     chat_ok = {
         "user_id": "martin",
         "project": project_name,
@@ -74,7 +72,6 @@ def test_coc_chat_flow():
     assert body_ok["mode"] == "answer"
     assert any(m["id"] == mem_1 for m in body_ok["used_memories"])
 
-    # Chat sin memoria suficiente
     chat_fail = {
         "user_id": "martin",
         "project": project_name,
@@ -86,7 +83,6 @@ def test_coc_chat_flow():
     body_fail = r3.json()
     assert body_fail["mode"] == "insufficient_memory"
 
-    # Guardar interacción
     chat_save = {
         "user_id": "martin",
         "project": project_name,
@@ -98,7 +94,6 @@ def test_coc_chat_flow():
     body_save = r4.json()
     assert body_save["mode"] == "answer"
 
-    # Verificar que se guardó una conversación
     r5 = requests.get(f"{BASE_URL}/memories", timeout=20)
     assert r5.status_code == 200
     items = r5.json()
@@ -109,6 +104,5 @@ def test_coc_chat_flow():
         for x in items
     )
 
-    # Limpieza básica
     requests.delete(f"{BASE_URL}/memories/{mem_1}", timeout=20)
     requests.delete(f"{BASE_URL}/memories/{mem_2}", timeout=20)
