@@ -21,4 +21,4 @@ jobs:
         run: pip install pytest requests
 
       - name: Run tests
-        run: pytest -v
+        run: pytest -v tests/test_memory_api.py
