@@ -20,5 +20,5 @@ jobs:
       - name: Install dependencies
         run: pip install pytest requests
 
-      - name: Run memory, chat, coc and isolation api tests
-        run: pytest -v tests/test_memory_api.py tests/test_chat_api.py tests/test_coc_chat_api.py tests/test_coc_real_api.py tests/test_project_isolation_api.py
+      - name: Run memory, chat, coc, isolation and ambiguity api tests
+        run: pytest -v tests/test_memory_api.py tests/test_chat_api.py tests/test_coc_chat_api.py tests/test_coc_real_api.py tests/test_project_isolation_api.py tests/test_ambiguity_api.pyp
