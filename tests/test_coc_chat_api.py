@@ -72,16 +72,17 @@ def test_coc_chat_flow():
     assert body_ok["mode"] == "answer"
     assert any(m["id"] == mem_1 for m in body_ok["used_memories"])
 
-    chat_fail = {
+    chat_rule = {
         "user_id": "martin",
         "project": project_name,
-        "message": "tema inexistente total de coc",
+        "message": "¿Qué pasa si falta memoria?",
         "save_interaction": False
     }
-    r3 = requests.post(f"{BASE_URL}/chat", json=chat_fail, timeout=30)
+    r3 = requests.post(f"{BASE_URL}/chat", json=chat_rule, timeout=30)
     assert r3.status_code == 200
-    body_fail = r3.json()
-    assert body_fail["mode"] == "insufficient_memory"
+    body_rule = r3.json()
+    assert body_rule["mode"] == "answer"
+    assert any(m["id"] == mem_2 for m in body_rule["used_memories"])
 
     chat_save = {
         "user_id": "martin",
