@@ -178,9 +178,22 @@ def save_chat_interaction(payload: ChatRequest, result: dict) -> None:
     )
 
 
-@router.post("/chat", response_model=ChatResponse)
-def chat(payload: ChatRequest):
+def resolve_chat_context(payload: ChatRequest) -> dict:
     memories = retrieve_memories(payload)
     result = build_chat_result(payload, memories)
-    save_chat_interaction(payload, result)
-    return result
+
+    return {
+        "mode": result.get("mode"),
+        "answer": result.get("answer"),
+        "used_memories": result.get("used_memories", []),
+        "options": result.get("options", []),
+        "memories": memories,
+        "result": result,
+    }
+
+
+@router.post("/chat", response_model=ChatResponse)
+def chat(payload: ChatRequest):
+    ctx = resolve_chat_context(payload)
+    save_chat_interaction(payload, ctx["result"])
+    return ctx["result"]
