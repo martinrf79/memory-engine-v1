@@ -93,15 +93,13 @@ def retrieve_memories(payload: ChatRequest) -> list[dict]:
                     item.get("trigger_query") or "",
                     item.get("user_message") or "",
                     item.get("assistant_answer") or "",
-                    item.get("project") or "",
-                    item.get("book_id") or "",
                 ]
             )
         )
 
         matches = sum(1 for keyword in keywords if keyword in haystack)
-if matches >= 2:
-    results.append(item)
+        if matches >= 2:
+            results.append(item)
 
     return results[:10]
 
