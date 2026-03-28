@@ -99,8 +99,9 @@ def retrieve_memories(payload: ChatRequest) -> list[dict]:
             )
         )
 
-        if any(keyword in haystack for keyword in keywords):
-            results.append(item)
+        matches = sum(1 for keyword in keywords if keyword in haystack)
+if matches >= 2:
+    results.append(item)
 
     return results[:10]
 
