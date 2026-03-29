@@ -1,16 +1,17 @@
 from fastapi import APIRouter, HTTPException
 
-from app.firestore_store import collection
+from app.firestore_store import semantic_collection
 from app.firestore_utils import enum_to_value, memory_dict_from_firestore
-from app.schemas import MemoryResponse, MemoryUpdate
+from app.schemas import MemoryUpdate
+from app.semantic_memory import audit_semantic_memories
 from app.utils import utc_now_iso
 
 router = APIRouter()
 
 
-@router.patch("/memories/{memory_id}", response_model=MemoryResponse)
+@router.patch("/memories/{memory_id}")
 def update_memory(memory_id: str, payload: MemoryUpdate):
-    doc_ref = collection.document(memory_id)
+    doc_ref = semantic_collection.document(memory_id)
     existing = doc_ref.get()
 
     if not existing.exists:
@@ -28,9 +29,9 @@ def update_memory(memory_id: str, payload: MemoryUpdate):
     return memory_dict_from_firestore(updated)
 
 
-@router.post("/memories/{memory_id}/archive", response_model=MemoryResponse)
+@router.post("/memories/{memory_id}/archive")
 def archive_memory(memory_id: str):
-    doc_ref = collection.document(memory_id)
+    doc_ref = semantic_collection.document(memory_id)
     existing = doc_ref.get()
 
     if not existing.exists:
@@ -49,7 +50,7 @@ def archive_memory(memory_id: str):
 
 @router.delete("/memories/{memory_id}")
 def delete_memory(memory_id: str):
-    doc_ref = collection.document(memory_id)
+    doc_ref = semantic_collection.document(memory_id)
     existing = doc_ref.get()
 
     if not existing.exists:
@@ -57,3 +58,9 @@ def delete_memory(memory_id: str):
 
     doc_ref.delete()
     return {"status": "deleted", "id": memory_id}
+
+
+@router.post("/memories/audit")
+def audit_memories(dry_run: bool = True):
+    findings = audit_semantic_memories(dry_run=dry_run)
+    return {"dry_run": dry_run, "findings": findings}

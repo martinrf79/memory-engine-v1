@@ -13,4 +13,5 @@ class MemoryType(str, Enum):
 
 class MemoryStatus(str, Enum):
     active = "active"
+    superseded = "superseded"
     archived = "archived"

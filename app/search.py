@@ -3,9 +3,8 @@ from pydantic import BaseModel, StringConstraints
 from typing import Annotated, Optional
 
 from app.enums import MemoryStatus, MemoryType
-from app.firestore_store import collection
+from app.firestore_store import semantic_collection
 from app.firestore_utils import memory_dict_from_firestore
-from app.schemas import MemoryResponse
 
 router = APIRouter()
 
@@ -21,9 +20,9 @@ class MemorySearchRequest(BaseModel):
     query: FilterStr = None
 
 
-@router.post("/memories/search", response_model=list[MemoryResponse])
+@router.post("/memories/search")
 def search_memories(payload: MemorySearchRequest):
-    docs = collection.stream()
+    docs = semantic_collection.stream()
     items = [memory_dict_from_firestore(doc) for doc in docs]
 
     results = []
@@ -44,11 +43,10 @@ def search_memories(payload: MemorySearchRequest):
         if text_query:
             haystack = " ".join(
                 [
-                    item.get("content") or "",
-                    item.get("summary") or "",
-                    item.get("trigger_query") or "",
-                    item.get("user_message") or "",
-                    item.get("assistant_answer") or "",
+                    item.get("entity") or "",
+                    item.get("attribute") or "",
+                    item.get("value_text") or "",
+                    item.get("context") or "",
                 ]
             ).lower()
 

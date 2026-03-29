@@ -1,3 +1,10 @@
+from __future__ import annotations
+
+import os
+from collections import defaultdict
+from collections.abc import Callable
+from typing import Any
+
 from google.cloud import firestore
 
 
@@ -50,14 +57,51 @@ class FakeCollection:
         self._store.clear()
 
 
-def build_collection():
-    import os
+class FakeFirestoreDB:
+    def __init__(self):
+        self._collections: dict[str, FakeCollection] = defaultdict(FakeCollection)
 
+    def collection(self, name: str) -> FakeCollection:
+        return self._collections[name]
+
+    def run_transaction(self, callback: Callable[..., Any], *args, **kwargs) -> Any:
+        return callback(None, *args, **kwargs)
+
+
+class FirestoreDB:
+    def __init__(self):
+        self._client = firestore.Client()
+
+    def collection(self, name: str):
+        return self._client.collection(name)
+
+    def run_transaction(self, callback: Callable[..., Any], *args, **kwargs) -> Any:
+        transaction = self._client.transaction()
+
+        @firestore.transactional
+        def wrapped(txn):
+            return callback(txn, *args, **kwargs)
+
+        return wrapped(transaction)
+
+
+def build_db():
     if os.getenv("GITHUB_ACTIONS") == "true":
-        return FakeCollection()
+        return FakeFirestoreDB()
 
-    client = firestore.Client()
-    return client.collection("memories")
+    return FirestoreDB()
 
 
-collection = build_collection()
+db = build_db()
+
+
+def get_collection(name: str):
+    return db.collection(name)
+
+
+semantic_collection = get_collection("semantic_memories")
+chat_events_collection = get_collection("chat_events")
+memory_keys_collection = get_collection("memory_keys")
+
+# Backward-compatible alias.
+collection = semantic_collection

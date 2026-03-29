@@ -79,3 +79,43 @@ class MemoryResponse(MemoryBase):
     id: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SemanticMemoryBase(BaseModel):
+    user_id: NonEmptyStr
+    project: NonEmptyStr
+    book_id: NonEmptyStr
+    memory_type: NonEmptyStr
+    entity: NonEmptyStr
+    attribute: NonEmptyStr
+    value_text: NonEmptyStr
+    context: Optional[str] = None
+    status: MemoryStatus = MemoryStatus.active
+    dedupe_key: NonEmptyStr
+    version: int = 1
+    valid_from: NonEmptyStr
+    valid_to: Optional[str] = None
+    source_type: NonEmptyStr
+    source_event_id: NonEmptyStr
+    created_at: NonEmptyStr
+    updated_at: Optional[str] = None
+
+
+class SemanticMemoryResponse(SemanticMemoryBase):
+    id: str
+
+
+class ChatEventBase(BaseModel):
+    user_id: NonEmptyStr
+    project: NonEmptyStr
+    book_id: NonEmptyStr
+    user_message: NonEmptyStr
+    assistant_answer: NonEmptyStr
+    llm_provider: NonEmptyStr
+    llm_model: NonEmptyStr
+    created_at: NonEmptyStr
+    ttl_at: Optional[str] = None
+
+
+class ChatEventResponse(ChatEventBase):
+    id: str
