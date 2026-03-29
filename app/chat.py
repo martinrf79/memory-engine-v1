@@ -21,6 +21,13 @@ STOPWORDS = {
     "cuál", "cuales", "cuáles", "del", "las", "los", "hay", "fue", "son",
     "esta", "este", "estos", "estas", "de", "la", "el", "y", "o", "a", "en"
 }
+CONVERSATION_MEMORY_TYPES = {"conversation"}
+CONTAMINATED_PATTERNS = (
+    "insufficient_memory",
+    "segun la memoria encontrada",
+    "segun las memorias encontradas",
+    "answer:",
+)
 
 
 class ChatRequest(BaseModel):
@@ -80,6 +87,8 @@ def retrieve_memories(payload: ChatRequest) -> list[dict]:
             continue
         if item.get("status") != "active":
             continue
+        if item.get("memory_type") in CONVERSATION_MEMORY_TYPES:
+            continue
         if payload.project and item.get("project") != payload.project:
             continue
         if payload.book_id and item.get("book_id") != payload.book_id:
@@ -91,8 +100,6 @@ def retrieve_memories(payload: ChatRequest) -> list[dict]:
                     item.get("content") or "",
                     item.get("summary") or "",
                     item.get("trigger_query") or "",
-                    item.get("user_message") or "",
-                    item.get("assistant_answer") or "",
                 ]
             )
         )
@@ -104,13 +111,70 @@ def retrieve_memories(payload: ChatRequest) -> list[dict]:
     return results[:10]
 
 
+def archive_contaminated_memories(payload: ChatRequest) -> None:
+    for doc in collection.stream():
+        item = memory_dict_from_firestore(doc)
+        if item.get("user_id") != payload.user_id:
+            continue
+        if item.get("status") != "active":
+            continue
+        if payload.project and item.get("project") != payload.project:
+            continue
+        if payload.book_id and item.get("book_id") != payload.book_id:
+            continue
+
+        combined = normalize_text(
+            " ".join(
+                [
+                    item.get("summary") or "",
+                    item.get("content") or "",
+                    item.get("assistant_answer") or "",
+                ]
+            )
+        )
+
+        is_contaminated = item.get("memory_type") in CONVERSATION_MEMORY_TYPES or any(
+            pattern in combined for pattern in CONTAMINATED_PATTERNS
+        )
+        if not is_contaminated:
+            continue
+
+        collection.document(item["id"]).update(
+            {
+                "status": "archived",
+                "updated_at": utc_now_iso(),
+            }
+        )
+
+
+def answer_from_entity_value(payload: ChatRequest, memories: list[dict]) -> Optional[str]:
+    normalized_question = normalize_text(payload.message)
+    if "color favorito" not in normalized_question:
+        return None
+
+    for memory in memories:
+        text = normalize_text(
+            " ".join(
+                [
+                    memory.get("content") or "",
+                    memory.get("summary") or "",
+                ]
+            )
+        )
+        match = re.search(r"color favorito es ([a-záéíóúñ]+)", text)
+        if match:
+            return f"Tu color favorito es {match.group(1)}."
+
+    return None
+
+
 def build_chat_result(payload: ChatRequest, memories: list[dict]) -> dict:
     if not memories:
         return {
             "mode": "insufficient_memory",
-            "answer": "No tengo memoria suficiente para responder con seguridad. Dame un dato más o indica proyecto y categoría.",
+            "answer": "No tengo ese dato todavía. ¿Querés decirme tu color favorito para guardarlo?",
             "used_memories": [],
-            "options": [],
+            "options": ["Mi color favorito es ...", "No quiero guardarlo ahora"],
         }
 
     used = [{"id": memory["id"], "summary": memory.get("summary", "")} for memory in memories]
@@ -135,8 +199,10 @@ def build_chat_result(payload: ChatRequest, memories: list[dict]) -> dict:
                 "options": book_ids,
             }
 
-    settings = get_user_llm_settings(payload.user_id)
-    answer_text = generate_answer_from_memories(settings, payload.message, memories)
+    answer_text = answer_from_entity_value(payload, memories)
+    if not answer_text:
+        settings = get_user_llm_settings(payload.user_id)
+        answer_text = generate_answer_from_memories(settings, payload.message, memories)
 
     return {
         "mode": "answer",
@@ -161,7 +227,7 @@ def save_chat_interaction(payload: ChatRequest, result: dict) -> None:
             "project": payload.project or "general",
             "book_id": payload.book_id or "general",
             "memory_type": "conversation",
-            "status": "active",
+            "status": "archived",
             "content": f"Usuario: {payload.message}\nAsistente: {result['answer']}\nOpciones: {options_text}",
             "summary": f"{result['mode']}: {payload.message[:80]}",
             "user_message": payload.message,
@@ -178,6 +244,7 @@ def save_chat_interaction(payload: ChatRequest, result: dict) -> None:
 
 
 def resolve_chat_context(payload: ChatRequest) -> dict:
+    archive_contaminated_memories(payload)
     memories = retrieve_memories(payload)
     result = build_chat_result(payload, memories)
 

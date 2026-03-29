@@ -13,11 +13,9 @@ def generate_answer_from_memories(
     summaries = [memory.get("summary") for memory in memories if memory.get("summary")]
 
     if not summaries:
-        return "No tengo memoria suficiente para responder con seguridad."
+        return "No tengo ese dato todavía."
 
     if settings.provider == "mock":
-        if len(summaries) == 1:
-            return f"Según la memoria encontrada: {summaries[0]}"
-        return "Según las memorias encontradas: " + " | ".join(summaries)
+        return summaries[0]
 
     return "Proveedor LLM no soportado todavía."
