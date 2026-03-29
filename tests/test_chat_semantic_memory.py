@@ -279,3 +279,35 @@ def test_audit_detects_duplicate_active_keys():
     assert audit.status_code == 200
     body = audit.json()
     assert body["findings"]["duplicate_active_keys"]
+
+
+def test_test_config_user_and_project_answer():
+    _clear_collections()
+
+    client.post(
+        "/chat",
+        json={"user_id": "martin", "project": "memoria-guia", "book_id": "general", "message": "El user_id de pruebas es martin"},
+    )
+    client.post(
+        "/chat",
+        json={
+            "user_id": "martin",
+            "project": "memoria-guia",
+            "book_id": "general",
+            "message": "El project de pruebas es memoria-guia",
+        },
+    )
+    response = client.post(
+        "/chat",
+        json={
+            "user_id": "martin",
+            "project": "memoria-guia",
+            "book_id": "general",
+            "message": "¿Cuál es el user_id y project de pruebas?",
+        },
+    )
+    body = response.json()
+
+    assert body["mode"] == "answer"
+    assert body["answer"] == "La configuración de pruebas es user_id=martin y project=memoria-guia."
+    assert "color favorito" not in body["answer"].lower()

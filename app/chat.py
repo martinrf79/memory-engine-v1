@@ -42,6 +42,12 @@ def _guess_query_target(message: str) -> Optional[tuple[str, str]]:
     text = message.lower()
     if "que recuerdas de este proyecto" in text or "qué recuerdas de este proyecto" in text:
         return ("project", "summary")
+    if ("user_id" in text or "usuario de pruebas" in text) and ("project" in text or "proyecto de pruebas" in text):
+        return ("test_config", "user_id_project")
+    if "user_id" in text and "pruebas" in text:
+        return ("test_config", "user_id")
+    if "project" in text and "pruebas" in text:
+        return ("test_config", "project")
     if "color favorito" in text:
         return ("user", "favorite_color")
     if "comida favorita" in text:
@@ -119,6 +125,28 @@ def build_chat_result(payload: ChatRequest, memories: list[dict]) -> dict:
     entity, attribute = target
     if entity == "project" and attribute == "summary":
         return _build_project_context_answer(scoped_memories)
+
+    if entity == "test_config" and attribute == "user_id_project":
+        user_candidates = [m for m in scoped_memories if m.get("entity") == "test_config" and m.get("attribute") == "user_id"]
+        project_candidates = [
+            m for m in scoped_memories if m.get("entity") == "test_config" and m.get("attribute") == "project"
+        ]
+        if not user_candidates or not project_candidates:
+            return {
+                "mode": "insufficient_memory",
+                "answer": "Me falta configuración de pruebas. ¿Querés indicar user_id y project?",
+                "used_memories": [],
+                "options": ["user_id=... y project=...", "No por ahora"],
+            }
+        user_value = sorted({x.get("value_text") for x in user_candidates if x.get("value_text")})[0]
+        project_value = sorted({x.get("value_text") for x in project_candidates if x.get("value_text")})[0]
+        used_memories = [_memory_to_used(memory).model_dump() for memory in (user_candidates[:1] + project_candidates[:1])]
+        return {
+            "mode": "answer",
+            "answer": f"La configuración de pruebas es user_id={user_value} y project={project_value}.",
+            "used_memories": used_memories,
+            "options": [],
+        }
 
     candidates = [m for m in scoped_memories if m.get("entity") == entity and m.get("attribute") == attribute]
     used_memories = [_memory_to_used(memory).model_dump() for memory in candidates]

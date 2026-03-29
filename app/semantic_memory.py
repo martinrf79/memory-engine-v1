@@ -47,6 +47,8 @@ def extract_structured_memory(message: str) -> Optional[ExtractedMemory]:
         (r"mi color favorito es ([a-záéíóúñ]+)", "preference", "user", "favorite_color"),
         (r"prefiero ([a-záéíóúñ]+)", "preference", "user", "preference"),
         (r"mi comida favorita es ([a-záéíóúñ ]+)", "preference", "user", "favorite_food"),
+        (r"el user_id de pruebas es ([a-z0-9_-]+)", "instruction", "test_config", "user_id"),
+        (r"el project de pruebas es ([a-z0-9_-]+)", "instruction", "test_config", "project"),
     ]
 
     normalized = message.strip().lower()
