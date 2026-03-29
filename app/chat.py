@@ -40,6 +40,8 @@ class ChatResponse(BaseModel):
 
 def _guess_query_target(message: str) -> Optional[tuple[str, str]]:
     text = message.lower()
+    if "que recuerdas de este proyecto" in text or "qué recuerdas de este proyecto" in text:
+        return ("project", "summary")
     if "color favorito" in text:
         return ("user", "favorite_color")
     if "comida favorita" in text:
@@ -56,9 +58,55 @@ def _memory_to_used(memory: dict) -> UsedMemory:
     return UsedMemory(id=memory["id"], summary=summary)
 
 
+def _dedupe_active_memories(memories: list[dict]) -> list[dict]:
+    by_key: dict[str, dict] = {}
+    for memory in memories:
+        key = memory.get("dedupe_key") or memory["id"]
+        current = by_key.get(key)
+        if not current:
+            by_key[key] = memory
+            continue
+        current_version = int(current.get("version") or 1)
+        new_version = int(memory.get("version") or 1)
+        if new_version >= current_version:
+            by_key[key] = memory
+    return list(by_key.values())
+
+
+def _build_project_context_answer(memories: list[dict]) -> dict:
+    scoped = _dedupe_active_memories(memories)
+    if not scoped:
+        return {
+            "mode": "insufficient_memory",
+            "answer": "Todavía no tengo recuerdos útiles de este proyecto. ¿Querés que guarde alguno ahora?",
+            "used_memories": [],
+            "options": ["Sí, guardar ahora", "No por ahora"],
+        }
+
+    grouped = {}
+    for memory in scoped:
+        grouped.setdefault(memory.get("attribute"), set()).add(memory.get("value_text"))
+
+    lines = []
+    for attribute, values in sorted(grouped.items()):
+        clean_values = ", ".join(sorted(v for v in values if v))
+        if clean_values:
+            lines.append(f"{attribute}: {clean_values}")
+
+    answer = "Recuerdo esto de este proyecto: " + " | ".join(lines[:5])
+    used_memories = [_memory_to_used(memory).model_dump() for memory in scoped[:10]]
+    return {
+        "mode": "answer",
+        "answer": answer,
+        "used_memories": used_memories,
+        "options": [],
+    }
+
+
 def build_chat_result(payload: ChatRequest, memories: list[dict]) -> dict:
-    target = _guess_query_target(payload.message)
-    used_memories = [_memory_to_used(memory).model_dump() for memory in memories]
+    target = _guess_query_target(payload.message or "")
+    scoped_memories = _dedupe_active_memories(memories)
+    used_memories = [_memory_to_used(memory).model_dump() for memory in scoped_memories]
 
     if not target:
         return {
@@ -69,7 +117,11 @@ def build_chat_result(payload: ChatRequest, memories: list[dict]) -> dict:
         }
 
     entity, attribute = target
-    candidates = [m for m in memories if m.get("entity") == entity and m.get("attribute") == attribute]
+    if entity == "project" and attribute == "summary":
+        return _build_project_context_answer(scoped_memories)
+
+    candidates = [m for m in scoped_memories if m.get("entity") == entity and m.get("attribute") == attribute]
+    used_memories = [_memory_to_used(memory).model_dump() for memory in candidates]
 
     if not candidates:
         question = "No tengo ese dato todavía. ¿Querés decirme tu color favorito?"

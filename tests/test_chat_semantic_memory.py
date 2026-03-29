@@ -59,6 +59,7 @@ def test_extracts_structured_preference_and_answers_directly():
     body = ask.json()
     assert body["mode"] == "answer"
     assert body["answer"] == "Tu color favorito es azul."
+    assert all("favorite_color" in memory["summary"] for memory in body["used_memories"])
 
 
 def test_does_not_contaminate_with_assistant_answer_text():
@@ -162,6 +163,38 @@ def test_multi_project_ambiguity_without_project_filter():
 
     assert body["mode"] == "clarification_required"
     assert body["options"]
+
+
+def test_project_context_question_returns_project_memories_only():
+    _clear_collections()
+
+    client.post(
+        "/chat",
+        json={"user_id": "martin", "project": "memoria-guia", "book_id": "general", "message": "Mi color favorito es azul"},
+    )
+    client.post(
+        "/chat",
+        json={"user_id": "martin", "project": "memoria-guia", "book_id": "general", "message": "Mi comida favorita es pizza"},
+    )
+    client.post(
+        "/chat",
+        json={"user_id": "martin", "project": "otro-proyecto", "book_id": "general", "message": "Mi color favorito es verde"},
+    )
+
+    response = client.post(
+        "/chat",
+        json={
+            "user_id": "martin",
+            "project": "memoria-guia",
+            "book_id": "general",
+            "message": "¿Qué recuerdas de este proyecto?",
+        },
+    )
+    body = response.json()
+    assert body["mode"] == "answer"
+    assert "favorite_color: azul" in body["answer"]
+    assert "favorite_food: pizza" in body["answer"]
+    assert "verde" not in body["answer"]
 
 
 def test_missing_data_prompts_without_technical_error():
