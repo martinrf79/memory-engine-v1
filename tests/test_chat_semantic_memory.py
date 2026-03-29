@@ -311,3 +311,27 @@ def test_test_config_user_and_project_answer():
     assert body["mode"] == "answer"
     assert body["answer"] == "La configuración de pruebas es user_id=martin y project=memoria-guia."
     assert "color favorito" not in body["answer"].lower()
+
+
+def test_seed_operational_memories_and_answer_test_config():
+    _clear_collections()
+
+    seed = client.post(
+        "/memories/seed-operational",
+        params={"user_id": "martin", "project": "memoria-guia", "book_id": "general"},
+    )
+    assert seed.status_code == 200
+    assert seed.json()["count"] == 2
+
+    ask = client.post(
+        "/chat",
+        json={
+            "user_id": "martin",
+            "project": "memoria-guia",
+            "book_id": "general",
+            "message": "¿Cuál es el user_id y project de pruebas?",
+        },
+    )
+    body = ask.json()
+    assert body["mode"] == "answer"
+    assert body["answer"] == "La configuración de pruebas es user_id=martin y project=memoria-guia."
