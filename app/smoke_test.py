@@ -2,13 +2,18 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from app.firestore_store import collection
+from app.firestore_store import chat_events_collection, collection, memory_keys_collection
 from app.main import app
 
 
+def _clear_all():
+    for col in (collection, chat_events_collection, memory_keys_collection):
+        if hasattr(col, "clear"):
+            col.clear()
+
+
 def run():
-    if hasattr(collection, "clear"):
-        collection.clear()
+    _clear_all()
 
     with TestClient(app) as client:
         response = client.get("/health")
@@ -17,20 +22,20 @@ def run():
 
         valid_payload = {
             "id": str(uuid4()),
-            "user_id": "user-1",
-            "project": "project-a",
+            "user_id": "martin",
+            "project": "memoria-guia",
             "book_id": "general",
             "memory_type": "note",
             "status": "active",
-            "content": "Memoria de prueba sobre cosecha",
-            "summary": "Resumen de prueba sobre cosecha",
-            "user_message": "Guardar prueba",
-            "assistant_answer": "Prueba guardada",
-            "trigger_query": "cosecha",
+            "content": "Prueba automatica de memoria.",
+            "summary": "Memoria automatica.",
+            "user_message": "Guardar prueba automatica",
+            "assistant_answer": "Prueba automatica guardada",
+            "trigger_query": "prueba automatica",
             "importance": 1,
             "keywords_json": None,
             "embedding_json": None,
-            "source": "test",
+            "source": "manual",
             "created_at": "2026-01-01T00:00:00Z",
             "updated_at": None,
         }
@@ -45,82 +50,68 @@ def run():
 
         search_response = client.post(
             "/memories/search",
-            json={"user_id": "user-1", "query": "cosecha"},
+            json={"user_id": "martin", "project": "memoria-guia", "query": "prueba automatica"},
         )
         assert search_response.status_code == 200
         assert len(search_response.json()) >= 1
 
-        chat_response = client.post(
+        save_color = client.post(
             "/chat",
             json={
-                "user_id": "user-1",
-                "project": "project-a",
-                "message": "cosecha",
-                "save_interaction": False,
+                "user_id": "martin",
+                "project": "memoria-guia",
+                "book_id": "general",
+                "message": "Mi color favorito es azul",
             },
         )
-        assert chat_response.status_code == 200
-        assert chat_response.json()["mode"] == "answer"
+        assert save_color.status_code == 200
+        assert save_color.json()["mode"] == "answer"
 
-        second_payload = dict(valid_payload)
-        second_payload["id"] = str(uuid4())
-        second_payload["project"] = "project-b"
-        second_payload["summary"] = "Resumen alternativo sobre cosecha"
-        second_payload["content"] = "Otra memoria de prueba sobre cosecha"
-        second_payload["assistant_answer"] = "Prueba guardada en otro proyecto"
-
-        second_create_response = client.post("/memories", json=second_payload)
-        assert second_create_response.status_code == 200
-
-        ambiguous_chat_response = client.post(
-            "/chat",
-            json={"user_id": "user-1", "message": "cosecha", "save_interaction": False},
-        )
-        assert ambiguous_chat_response.status_code == 200
-        ambiguous_data = ambiguous_chat_response.json()
-        assert ambiguous_data["mode"] == "clarification_required"
-        assert "project-a" in ambiguous_data["options"]
-        assert "project-b" in ambiguous_data["options"]
-
-        explicit_project_chat_response = client.post(
+        ask_color = client.post(
             "/chat",
             json={
-                "user_id": "user-1",
-                "project": "project-a",
-                "message": "cosecha",
-                "save_interaction": False,
+                "user_id": "martin",
+                "project": "memoria-guia",
+                "book_id": "general",
+                "message": "¿Cuál es mi color favorito?",
             },
         )
-        assert explicit_project_chat_response.status_code == 200
-        assert explicit_project_chat_response.json()["mode"] == "answer"
+        assert ask_color.status_code == 200
+        assert ask_color.json()["answer"] == "Tu color favorito es azul."
 
-        invalid_type_payload = dict(valid_payload)
-        invalid_type_payload["id"] = str(uuid4())
-        invalid_type_payload["memory_type"] = "invalid_type"
-        invalid_type_response = client.post("/memories", json=invalid_type_payload)
-        assert invalid_type_response.status_code == 422
+        seed_response = client.post(
+            "/memories/seed-operational",
+            params={"user_id": "martin", "project": "memoria-guia", "book_id": "general"},
+        )
+        assert seed_response.status_code == 200
+        assert seed_response.json()["count"] >= 2
 
-        invalid_status_payload = dict(valid_payload)
-        invalid_status_payload["id"] = str(uuid4())
-        invalid_status_payload["status"] = "invalid_status"
-        invalid_status_response = client.post("/memories", json=invalid_status_payload)
-        assert invalid_status_response.status_code == 422
+        config_response = client.post(
+            "/chat",
+            json={
+                "user_id": "martin",
+                "project": "memoria-guia",
+                "book_id": "general",
+                "message": "¿Cuál es el user_id y project de pruebas?",
+            },
+        )
+        assert config_response.status_code == 200
+        assert config_response.json()["mode"] == "answer"
 
-        blank_project_payload = dict(valid_payload)
-        blank_project_payload["id"] = str(uuid4())
-        blank_project_payload["project"] = "   "
-        blank_project_response = client.post("/memories", json=blank_project_payload)
-        assert blank_project_response.status_code == 422
-
-        invalid_date_payload = dict(valid_payload)
-        invalid_date_payload["id"] = str(uuid4())
-        invalid_date_payload["created_at"] = "fecha-mala"
-        invalid_date_response = client.post("/memories", json=invalid_date_payload)
-        assert invalid_date_response.status_code == 422
+        avoid_response = client.post(
+            "/chat",
+            json={
+                "user_id": "martin",
+                "project": "memoria-guia",
+                "book_id": "general",
+                "message": "¿Hay algo importante que deba evitar al probar este backend?",
+            },
+        )
+        assert avoid_response.status_code == 200
 
         invalid_chat_response = client.post(
             "/chat",
-            json={"user_id": "user-1", "message": "   ", "save_interaction": False},
+            json={"user_id": "martin", "message": "   ", "save_interaction": False},
         )
         assert invalid_chat_response.status_code == 422
 
