@@ -51,20 +51,52 @@ def normalize_text(value: str) -> str:
 def _guess_query_target(message: str) -> Optional[tuple[str, str]]:
     text = normalize_text(message)
 
+    asks_memory_summary = any(phrase in text for phrase in ["que recuerdas", "que sabes", "recuerda", "recuerdas"])
+    asks_what_to_do = any(
+        phrase in text
+        for phrase in [
+            "que debo hacer",
+            "que hay que hacer",
+            "que hacer",
+            "debo hacer",
+            "hay que hacer",
+        ]
+    )
+
     if ("user_id" in text and "project" in text and "prueba" in text) or "configuracion de pruebas" in text:
         return ("test_config", "user_id_project")
+
+    if asks_what_to_do and ("falta informacion" in text or "falta memoria" in text or "falta dato" in text):
+        return ("test_rule", "ask_for_missing_data")
+
+    if asks_what_to_do and ("hay ambiguedad" in text or "si hay ambiguedad" in text or "consulta ambigua" in text):
+        return ("test_rule", "ask_clarification_on_ambiguity")
+
+    if asks_what_to_do and "no invent" in text:
+        return ("test_rule", "do_not_invent")
+
     if "deba evitar" in text or "evitar al probar" in text or "algo importante que deba evitar" in text:
         return ("test_rule", "avoidances")
-    if "consulta ambigua" in text or ("ambig" in text and "deber" in text):
-        return ("test_rule", "ambiguity_rule")
-    if "que recuerdas sobre mi" in text or "que recuerdas de mi" in text:
+
+    if asks_memory_summary and "proyecto" in text and "martin" in text:
+        return ("scoped", "summary")
+
+    if asks_memory_summary and ("que recuerdas sobre mi" in text or "que recuerdas de mi" in text or "sobre martin" in text):
         return ("user", "summary")
-    if "que sabes especificamente sobre el proyecto" in text or "que recuerdas de este proyecto" in text:
+
+    if asks_memory_summary and (
+        "que sabes especificamente sobre el proyecto" in text
+        or "que recuerdas de este proyecto" in text
+        or "que recuerdas sobre el proyecto" in text
+    ):
         return ("project", "summary")
+
     if "color favorito" in text:
         return ("user", "favorite_color")
+
     if "comida favorita" in text:
         return ("user", "favorite_food")
+
     return None
 
 
@@ -103,7 +135,14 @@ def _render_summary_answer(memories: list[dict], intro: str) -> dict:
         }
 
     lines = []
-    for memory in sorted(scoped, key=lambda item: (item.get("entity", ""), item.get("attribute", ""), item.get("value_text", ""))):
+    for memory in sorted(
+        scoped,
+        key=lambda item: (
+            item.get("entity", ""),
+            item.get("attribute", ""),
+            item.get("value_text", ""),
+        ),
+    ):
         value = memory.get("value_text")
         if not value:
             continue
@@ -124,6 +163,7 @@ def _build_test_config_answer(memories: list[dict]) -> dict:
             "used_memories": [],
             "options": ["user_id=... y project=...", "No por ahora"],
         }
+
     user_value = sorted({x.get("value_text") for x in user_candidates if x.get("value_text")})[0]
     project_value = sorted({x.get("value_text") for x in project_candidates if x.get("value_text")})[0]
     used_memories = [_memory_to_used(memory).model_dump() for memory in (user_candidates[:1] + project_candidates[:1])]
@@ -161,6 +201,35 @@ def _build_avoidances_answer(memories: list[dict]) -> dict:
     return {"mode": "answer", "answer": answer, "used_memories": used_memories, "options": []}
 
 
+def _build_specific_test_rule_answer(memories: list[dict], attribute: str) -> dict:
+    scoped = [
+        m
+        for m in _dedupe_active_memories(memories)
+        if m.get("entity") == "test_rule" and m.get("attribute") == attribute
+    ]
+    if not scoped:
+        return {
+            "mode": "insufficient_memory",
+            "answer": "No tengo esa regla guardada todavía.",
+            "used_memories": [],
+            "options": [],
+        }
+
+    templates = {
+        "ask_for_missing_data": "Si falta información, pedila.",
+        "ask_clarification_on_ambiguity": "Si hay ambigüedad, pedí aclaración.",
+        "do_not_invent": "No inventes datos.",
+        "avoid_user_id_default": "Evitá usar user_id=default.",
+    }
+
+    answer = templates.get(attribute) or (scoped[0].get("value_text") or "Sí.")
+    if answer[-1] not in ".!?":
+        answer += "."
+
+    used_memories = [_memory_to_used(memory).model_dump() for memory in scoped[:10]]
+    return {"mode": "answer", "answer": answer, "used_memories": used_memories, "options": []}
+
+
 def build_chat_result(payload: ChatRequest, memories: list[dict]) -> dict:
     target = _guess_query_target(payload.message or "")
     scoped_memories = _dedupe_active_memories(memories)
@@ -175,6 +244,10 @@ def build_chat_result(payload: ChatRequest, memories: list[dict]) -> dict:
         }
 
     entity, attribute = target
+
+    if entity == "scoped" and attribute == "summary":
+        return _render_summary_answer(scoped_memories, "Recuerdo esto en este contexto:")
+
     if entity == "project" and attribute == "summary":
         project_memories = [m for m in scoped_memories if is_project_memory(m)]
         return _render_summary_answer(project_memories, "Recuerdo esto de este proyecto:")
@@ -186,8 +259,16 @@ def build_chat_result(payload: ChatRequest, memories: list[dict]) -> dict:
     if entity == "test_config" and attribute == "user_id_project":
         return _build_test_config_answer(scoped_memories)
 
-    if entity == "test_rule" and attribute in {"avoidances", "ambiguity_rule"}:
+    if entity == "test_rule" and attribute == "avoidances":
         return _build_avoidances_answer(scoped_memories)
+
+    if entity == "test_rule" and attribute in {
+        "ask_for_missing_data",
+        "ask_clarification_on_ambiguity",
+        "do_not_invent",
+        "avoid_user_id_default",
+    }:
+        return _build_specific_test_rule_answer(scoped_memories, attribute)
 
     candidates = [m for m in scoped_memories if m.get("entity") == entity and m.get("attribute") == attribute]
     used_memories = [_memory_to_used(memory).model_dump() for memory in candidates]
