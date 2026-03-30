@@ -1,0 +1,24 @@
+name: test-memory-engine
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pytest requests
+
+      - name: Run memory, chat, coc, isolation and ambiguity api tests
+        run: pytest -v tests/test_memory_api.py tests/test_chat_api.py tests/test_coc_chat_api.py tests/test_coc_real_api.py tests/test_project_isolation_api.py tests/test_ambiguity_api.py
