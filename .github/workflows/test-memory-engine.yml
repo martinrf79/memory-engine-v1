@@ -28,7 +28,7 @@ jobs:
         run: python -m pip install --upgrade pip
 
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt pytest
+        run: python -m pip install -r requirements.txt pytest httpx
 
       - name: Run semantic memory tests
         run: python -m pytest -q tests/test_chat_semantic_memory.py
