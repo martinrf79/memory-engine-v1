@@ -1,12 +1,18 @@
-name: test-memory-engine
+name: ci-memory
 
 on:
   push:
+    branches:
+      - backend-clean
   workflow_dispatch:
 
 jobs:
-  test:
+  test-memory:
     runs-on: ubuntu-latest
+
+    env:
+      GITHUB_ACTIONS: "true"
+      PYTHONPATH: "."
 
     steps:
       - name: Checkout repo
@@ -15,10 +21,20 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
 
       - name: Install dependencies
-        run: pip install pytest requests
+        run: python -m pip install -r requirements.txt pytest
 
-      - name: Run memory, chat, coc, isolation and ambiguity api tests
-        run: pytest -v tests/test_memory_api.py tests/test_chat_api.py tests/test_coc_chat_api.py tests/test_coc_real_api.py tests/test_project_isolation_api.py tests/test_ambiguity_api.py
+      - name: Run semantic memory tests
+        run: python -m pytest -q tests/test_chat_semantic_memory.py
+
+      - name: Run smoke test
+        run: python app/smoke_test.py
+
+      - name: Run memory regression
+        run: python tests/run_memory_regression.py

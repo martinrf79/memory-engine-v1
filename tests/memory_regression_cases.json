@@ -1,0 +1,80 @@
+[
+  {
+    "name": "test_config_user_id_project",
+    "payload": {
+      "user_id": "martin",
+      "project": "memoria-guia",
+      "book_id": "general",
+      "save_interaction": true,
+      "message": "¿Cuál es el user_id y project de pruebas?"
+    },
+    "expected_mode": "answer",
+    "expected_contains": [
+      "user_id=martin",
+      "project=memoria-guia"
+    ],
+    "forbidden_contains": [
+      "insufficient_memory:",
+      "answer:"
+    ]
+  },
+  {
+    "name": "test_rule_avoidances",
+    "payload": {
+      "user_id": "martin",
+      "project": "memoria-guia",
+      "book_id": "general",
+      "save_interaction": true,
+      "message": "¿Hay algo importante que deba evitar al probar este backend?"
+    },
+    "expected_mode": "answer",
+    "expected_contains": [
+      "user_id=default",
+      "no inventes datos",
+      "si falta información, pedila",
+      "si hay ambigüedad, pedí aclaración"
+    ],
+    "forbidden_contains": [
+      "insufficient_memory:",
+      "answer:"
+    ]
+  },
+  {
+    "name": "test_rule_missing_info",
+    "payload": {
+      "user_id": "martin",
+      "project": "memoria-guia",
+      "book_id": "general",
+      "save_interaction": true,
+      "message": "Si falta información, ¿qué debo hacer?"
+    },
+    "expected_mode": "answer",
+    "expected_contains": [
+      "Si falta información, pedila."
+    ],
+    "forbidden_contains": [
+      "insufficient_memory:",
+      "answer:",
+      "¿Qué dato querés que recuerde o consulte?"
+    ]
+  },
+  {
+    "name": "test_rule_ambiguity",
+    "payload": {
+      "user_id": "martin",
+      "project": "memoria-guia",
+      "book_id": "general",
+      "save_interaction": true,
+      "message": "Si hay ambigüedad, ¿qué debo hacer?"
+    },
+    "expected_mode": "answer",
+    "expected_contains": [
+      "Si hay ambigüedad, pedí aclaración."
+    ],
+    "forbidden_contains": [
+      "insufficient_memory:",
+      "answer:",
+      "¿Qué dato querés que recuerde o consulte?"
+    ]
+  }
+]
