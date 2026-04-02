@@ -76,5 +76,26 @@
       "answer:",
       "¿Qué dato querés que recuerde o consulte?"
     ]
+  },
+  {
+    "name": "test_scoped_summary",
+    "payload": {
+      "user_id": "martin",
+      "project": "memoria-guia",
+      "book_id": "general",
+      "save_interaction": true,
+      "message": "¿Qué recuerdas sobre el proyecto memoria-guia y sobre martin?"
+    },
+    "expected_mode": "answer",
+    "expected_contains": [
+      "memoria-guia",
+      "martin",
+      "Si hay ambigüedad",
+      "Si falta información"
+    ],
+    "forbidden_contains": [
+      "insufficient_memory:",
+      "answer:"
+    ]
   }
 ]
