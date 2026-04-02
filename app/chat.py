@@ -159,6 +159,7 @@ def _guess_query_target(message: str) -> Optional[tuple[str, str]]:
             "de este proyecto",
             "sobre memoria-guia",
             "del proyecto memoria-guia",
+            "de memoria-guia",
         ],
     )
     asks_user = _contains_any(
@@ -167,6 +168,7 @@ def _guess_query_target(message: str) -> Optional[tuple[str, str]]:
             "sobre mi",
             "de mi",
             "sobre martin",
+            "de martin",
             "del usuario martin",
         ],
     )
