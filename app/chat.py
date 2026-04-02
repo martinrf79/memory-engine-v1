@@ -77,10 +77,13 @@ def _asks_what_to_do(text: str) -> bool:
             "que debo hacer",
             "que hay que hacer",
             "que hacer",
+            "que hago",
+            "que deberia hacer",
             "debo hacer",
             "hay que hacer",
             "como debo actuar",
             "como tengo que actuar",
+            "como procedo",
         ],
     )
 
