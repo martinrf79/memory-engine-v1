@@ -1,5 +1,4 @@
 from typing import Annotated, Optional
-import re
 import unicodedata
 
 from fastapi import APIRouter
@@ -44,7 +43,8 @@ class ChatResponse(BaseModel):
 
 def normalize_text(value: str) -> str:
     without_accents = "".join(
-        char for char in unicodedata.normalize("NFD", value.lower())
+        char
+        for char in unicodedata.normalize("NFD", value.lower())
         if unicodedata.category(char) != "Mn"
     )
     return " ".join(without_accents.split())
@@ -124,44 +124,32 @@ def _guess_query_target(message: str) -> Optional[tuple[str, str]]:
     ):
         return ("test_rule", "avoidances")
 
-    if (
-        _asks_what_to_do(text)
-        and _contains_any(
-            text,
-            [
-                "falta informacion",
-                "falta memoria",
-                "falta dato",
-                "si no tienes informacion suficiente",
-                "si no tenes informacion suficiente",
-                "si no hay suficiente informacion",
-            ],
-        )
+    if _asks_what_to_do(text) and _contains_any(
+        text,
+        [
+            "falta informacion",
+            "falta memoria",
+            "falta dato",
+            "si no tienes informacion suficiente",
+            "si no tenes informacion suficiente",
+            "si no hay suficiente informacion",
+        ],
     ):
         return ("test_rule", "ask_for_missing_data")
-
-    if (
-        _asks_what_to_do(text)
-        and _contains_any(
-            text,
-            [
-                "hay ambiguedad",
-                "si hay ambiguedad",
-                "consulta ambigua",
-                "si la consulta es ambigua",
-                "si es ambiguo",
-            ],
-        )
-    ):
-        return ("test_rule", "ask_clarification_on_ambiguity")
 
     if _asks_what_to_do(text) and _contains_any(
         text,
         [
-            "no invent",
-            "inventar",
+            "hay ambiguedad",
+            "si hay ambiguedad",
+            "consulta ambigua",
+            "si la consulta es ambigua",
+            "si es ambiguo",
         ],
     ):
+        return ("test_rule", "ask_clarification_on_ambiguity")
+
+    if _asks_what_to_do(text) and _contains_any(text, ["no invent", "inventar"]):
         return ("test_rule", "do_not_invent")
 
     asks_project = _contains_any(
@@ -566,10 +554,7 @@ def _acknowledgement_for_memory(extracted) -> str:
 def chat(payload: ChatRequest):
     extracted = extract_structured_memory(payload.message)
     normalized_message = normalize_text(payload.message)
-    is_statement = (
-        extracted is not None
-        and not _looks_like_question(normalized_message)
-    )
+    is_statement = extracted is not None and not _looks_like_question(normalized_message)
 
     if is_statement:
         answer = _acknowledgement_for_memory(extracted)
