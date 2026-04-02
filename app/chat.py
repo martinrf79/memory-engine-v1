@@ -458,10 +458,7 @@ def build_chat_result(payload: ChatRequest, memories: list[dict]) -> dict:
     return _build_value_answer(scoped_memories, entity, attribute)
 
 
-def save_chat_event(payload: ChatRequest, answer_text: str) -> Optional[str]:
-    if not payload.save_interaction:
-        return None
-
+def save_chat_event(payload: ChatRequest, answer_text: str) -> str:
     settings = get_user_llm_settings(payload.user_id)
     event_id = new_memory_id()
 
