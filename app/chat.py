@@ -133,6 +133,8 @@ def _guess_query_target(message: str) -> Optional[tuple[str, str]]:
             "falta informacion",
             "falta memoria",
             "falta dato",
+            "si no tengo suficiente informacion",
+            "no tengo suficiente informacion",
             "si no tienes informacion suficiente",
             "si no tenes informacion suficiente",
             "si no hay suficiente informacion",
