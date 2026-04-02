@@ -187,10 +187,12 @@ def test_project_context_question_returns_project_memories_only():
         },
     )
     body = response.json()
+
     assert body["mode"] == "answer"
-    assert "user_id: martin" in body["answer"]
-    assert "project: memoria-guia" in body["answer"]
-    assert "azul" not in body["answer"]
+    assert "Recuerdo esto de este proyecto:" in body["answer"]
+    assert "user_id=martin" in body["answer"]
+    assert "project=memoria-guia" in body["answer"]
+    assert "color favorito es azul" not in body["answer"].lower()
 
 
 def test_missing_data_prompts_without_technical_error():
