@@ -1,4 +1,5 @@
 from typing import Annotated, Optional
+import re
 import unicodedata
 
 from fastapi import APIRouter
@@ -43,53 +44,153 @@ class ChatResponse(BaseModel):
 
 def normalize_text(value: str) -> str:
     without_accents = "".join(
-        char for char in unicodedata.normalize("NFD", value.lower()) if unicodedata.category(char) != "Mn"
+        char for char in unicodedata.normalize("NFD", value.lower())
+        if unicodedata.category(char) != "Mn"
     )
     return " ".join(without_accents.split())
 
 
-def _guess_query_target(message: str) -> Optional[tuple[str, str]]:
-    text = normalize_text(message)
+def _contains_any(text: str, phrases: list[str]) -> bool:
+    return any(phrase in text for phrase in phrases)
 
-    asks_memory_summary = any(phrase in text for phrase in ["que recuerdas", "que sabes", "recuerda", "recuerdas"])
-    asks_what_to_do = any(
-        phrase in text
-        for phrase in [
+
+def _looks_like_question(text: str) -> bool:
+    return "?" in text or _contains_any(
+        text,
+        [
+            "que ",
+            "cual ",
+            "como ",
+            "cuando ",
+            "debo ",
+            "hay ",
+            "recuerdas ",
+            "sabes ",
+        ],
+    )
+
+
+def _asks_what_to_do(text: str) -> bool:
+    return _contains_any(
+        text,
+        [
             "que debo hacer",
             "que hay que hacer",
             "que hacer",
             "debo hacer",
             "hay que hacer",
-        ]
+            "como debo actuar",
+            "como tengo que actuar",
+        ],
     )
 
-    if ("user_id" in text and "project" in text and "prueba" in text) or "configuracion de pruebas" in text:
+
+def _asks_memory_summary(text: str) -> bool:
+    return _contains_any(
+        text,
+        [
+            "que recuerdas",
+            "que sabes",
+            "que tenes en memoria",
+            "que tienes en memoria",
+            "responde solo con lo que realmente tengas en memoria",
+        ],
+    )
+
+
+def _guess_query_target(message: str) -> Optional[tuple[str, str]]:
+    text = normalize_text(message)
+
+    if ("user_id" in text and "project" in text and "prueba" in text) or _contains_any(
+        text,
+        [
+            "configuracion de pruebas",
+            "configuracion de test",
+            "user_id y project de pruebas",
+            "user_id y project del test",
+        ],
+    ):
         return ("test_config", "user_id_project")
 
-    if asks_what_to_do and ("falta informacion" in text or "falta memoria" in text or "falta dato" in text):
-        return ("test_rule", "ask_for_missing_data")
-
-    if asks_what_to_do and ("hay ambiguedad" in text or "si hay ambiguedad" in text or "consulta ambigua" in text):
-        return ("test_rule", "ask_clarification_on_ambiguity")
-
-    if asks_what_to_do and "no invent" in text:
-        return ("test_rule", "do_not_invent")
-
-    if "deba evitar" in text or "evitar al probar" in text or "algo importante que deba evitar" in text:
+    if _contains_any(
+        text,
+        [
+            "deba evitar",
+            "evitar al probar",
+            "algo importante que deba evitar",
+            "que debo evitar",
+            "que hay que evitar",
+        ],
+    ):
         return ("test_rule", "avoidances")
 
-    if asks_memory_summary and "proyecto" in text and "martin" in text:
+    if (
+        _asks_what_to_do(text)
+        and _contains_any(
+            text,
+            [
+                "falta informacion",
+                "falta memoria",
+                "falta dato",
+                "si no tienes informacion suficiente",
+                "si no tenes informacion suficiente",
+                "si no hay suficiente informacion",
+            ],
+        )
+    ):
+        return ("test_rule", "ask_for_missing_data")
+
+    if (
+        _asks_what_to_do(text)
+        and _contains_any(
+            text,
+            [
+                "hay ambiguedad",
+                "si hay ambiguedad",
+                "consulta ambigua",
+                "si la consulta es ambigua",
+                "si es ambiguo",
+            ],
+        )
+    ):
+        return ("test_rule", "ask_clarification_on_ambiguity")
+
+    if _asks_what_to_do(text) and _contains_any(
+        text,
+        [
+            "no invent",
+            "inventar",
+        ],
+    ):
+        return ("test_rule", "do_not_invent")
+
+    asks_project = _contains_any(
+        text,
+        [
+            "sobre el proyecto",
+            "de este proyecto",
+            "sobre memoria-guia",
+            "del proyecto memoria-guia",
+        ],
+    )
+    asks_user = _contains_any(
+        text,
+        [
+            "sobre mi",
+            "de mi",
+            "sobre martin",
+            "del usuario martin",
+        ],
+    )
+
+    if _asks_memory_summary(text) and asks_project and asks_user:
         return ("scoped", "summary")
 
-    if asks_memory_summary and ("que recuerdas sobre mi" in text or "que recuerdas de mi" in text or "sobre martin" in text):
-        return ("user", "summary")
-
-    if asks_memory_summary and (
-        "que sabes especificamente sobre el proyecto" in text
-        or "que recuerdas de este proyecto" in text
-        or "que recuerdas sobre el proyecto" in text
-    ):
+    if _asks_memory_summary(text) and asks_project:
         return ("project", "summary")
+
+    if _asks_memory_summary(text) and asks_user:
+        return ("user", "summary")
 
     if "color favorito" in text:
         return ("user", "favorite_color")
@@ -111,21 +212,27 @@ def _memory_to_used(memory: dict) -> UsedMemory:
 
 def _dedupe_active_memories(memories: list[dict]) -> list[dict]:
     by_key: dict[str, dict] = {}
+
     for memory in memories:
         key = memory.get("dedupe_key") or memory["id"]
         current = by_key.get(key)
+
         if not current:
             by_key[key] = memory
             continue
+
         current_version = int(current.get("version") or 1)
         new_version = int(memory.get("version") or 1)
+
         if new_version >= current_version:
             by_key[key] = memory
+
     return list(by_key.values())
 
 
 def _render_summary_answer(memories: list[dict], intro: str) -> dict:
     scoped = _dedupe_active_memories(memories)
+
     if not scoped:
         return {
             "mode": "insufficient_memory",
@@ -143,19 +250,28 @@ def _render_summary_answer(memories: list[dict], intro: str) -> dict:
             item.get("value_text", ""),
         ),
     ):
-        value = memory.get("value_text")
+        value = (memory.get("value_text") or "").strip()
         if not value:
             continue
         lines.append(f"{memory.get('attribute')}: {value}")
 
-    answer = intro + " " + " | ".join(lines[:5])
+    answer = intro
+    if lines:
+        answer += " " + " | ".join(lines[:5])
+
     used_memories = [_memory_to_used(memory).model_dump() for memory in scoped[:10]]
-    return {"mode": "answer", "answer": answer, "used_memories": used_memories, "options": []}
+    return {
+        "mode": "answer",
+        "answer": answer,
+        "used_memories": used_memories,
+        "options": [],
+    }
 
 
 def _build_test_config_answer(memories: list[dict]) -> dict:
     user_candidates = [m for m in memories if m.get("entity") == "test_config" and m.get("attribute") == "user_id"]
     project_candidates = [m for m in memories if m.get("entity") == "test_config" and m.get("attribute") == "project"]
+
     if not user_candidates or not project_candidates:
         return {
             "mode": "insufficient_memory",
@@ -166,7 +282,12 @@ def _build_test_config_answer(memories: list[dict]) -> dict:
 
     user_value = sorted({x.get("value_text") for x in user_candidates if x.get("value_text")})[0]
     project_value = sorted({x.get("value_text") for x in project_candidates if x.get("value_text")})[0]
-    used_memories = [_memory_to_used(memory).model_dump() for memory in (user_candidates[:1] + project_candidates[:1])]
+
+    used_memories = [
+        _memory_to_used(memory).model_dump()
+        for memory in (user_candidates[:1] + project_candidates[:1])
+    ]
+
     return {
         "mode": "answer",
         "answer": f"La configuración de pruebas es user_id={user_value} y project={project_value}.",
@@ -177,6 +298,7 @@ def _build_test_config_answer(memories: list[dict]) -> dict:
 
 def _build_avoidances_answer(memories: list[dict]) -> dict:
     scoped = [m for m in _dedupe_active_memories(memories) if m.get("entity") == "test_rule"]
+
     if not scoped:
         return {
             "mode": "insufficient_memory",
@@ -187,6 +309,7 @@ def _build_avoidances_answer(memories: list[dict]) -> dict:
 
     facts = {memory.get("attribute"): memory.get("value_text") for memory in scoped}
     parts = []
+
     if "avoid_user_id_default" in facts:
         parts.append("evitá usar user_id=default")
     if "do_not_invent" in facts:
@@ -198,7 +321,13 @@ def _build_avoidances_answer(memories: list[dict]) -> dict:
 
     used_memories = [_memory_to_used(memory).model_dump() for memory in scoped[:10]]
     answer = "Sí. " + ", ".join(parts) + "."
-    return {"mode": "answer", "answer": answer, "used_memories": used_memories, "options": []}
+
+    return {
+        "mode": "answer",
+        "answer": answer,
+        "used_memories": used_memories,
+        "options": [],
+    }
 
 
 def _build_specific_test_rule_answer(memories: list[dict], attribute: str) -> dict:
@@ -207,6 +336,7 @@ def _build_specific_test_rule_answer(memories: list[dict], attribute: str) -> di
         for m in _dedupe_active_memories(memories)
         if m.get("entity") == "test_rule" and m.get("attribute") == attribute
     ]
+
     if not scoped:
         return {
             "mode": "insufficient_memory",
@@ -227,7 +357,62 @@ def _build_specific_test_rule_answer(memories: list[dict], attribute: str) -> di
         answer += "."
 
     used_memories = [_memory_to_used(memory).model_dump() for memory in scoped[:10]]
-    return {"mode": "answer", "answer": answer, "used_memories": used_memories, "options": []}
+
+    return {
+        "mode": "answer",
+        "answer": answer,
+        "used_memories": used_memories,
+        "options": [],
+    }
+
+
+def _build_value_answer(scoped_memories: list[dict], entity: str, attribute: str) -> dict:
+    candidates = [
+        m
+        for m in scoped_memories
+        if m.get("entity") == entity and m.get("attribute") == attribute
+    ]
+
+    used_memories = [_memory_to_used(memory).model_dump() for memory in candidates]
+
+    if not candidates:
+        question = "No tengo ese dato todavía. ¿Querés decirme tu color favorito?"
+        if attribute == "favorite_food":
+            question = "No tengo ese dato todavía. ¿Querés decirme tu comida favorita?"
+        return {
+            "mode": "insufficient_memory",
+            "answer": question,
+            "used_memories": [],
+            "options": ["Sí, te lo digo ahora", "No por ahora"],
+        }
+
+    unique_values = sorted(
+        {(m.get("value_text") or "").strip() for m in candidates if m.get("value_text")}
+    )
+
+    if len(unique_values) > 1:
+        options = [f"{idx}) {value}" for idx, value in enumerate(unique_values, start=1)]
+        return {
+            "mode": "clarification_required",
+            "answer": "Encontré más de una opción. ¿Querés elegir una?",
+            "used_memories": used_memories,
+            "options": options,
+        }
+
+    value = unique_values[0]
+    if attribute == "favorite_color":
+        answer = f"Tu color favorito es {value}."
+    elif attribute == "favorite_food":
+        answer = f"Tu comida favorita es {value}."
+    else:
+        answer = f"Tu {attribute} es {value}."
+
+    return {
+        "mode": "answer",
+        "answer": answer,
+        "used_memories": used_memories,
+        "options": [],
+    }
 
 
 def build_chat_result(payload: ChatRequest, memories: list[dict]) -> dict:
@@ -270,49 +455,16 @@ def build_chat_result(payload: ChatRequest, memories: list[dict]) -> dict:
     }:
         return _build_specific_test_rule_answer(scoped_memories, attribute)
 
-    candidates = [m for m in scoped_memories if m.get("entity") == entity and m.get("attribute") == attribute]
-    used_memories = [_memory_to_used(memory).model_dump() for memory in candidates]
-
-    if not candidates:
-        question = "No tengo ese dato todavía. ¿Querés decirme tu color favorito?"
-        if attribute == "favorite_food":
-            question = "No tengo ese dato todavía. ¿Querés decirme tu comida favorita?"
-        return {
-            "mode": "insufficient_memory",
-            "answer": question,
-            "used_memories": [],
-            "options": ["Sí, te lo digo ahora", "No por ahora"],
-        }
-
-    unique_values = sorted({(m.get("value_text") or "").strip() for m in candidates if m.get("value_text")})
-    if len(unique_values) > 1:
-        options = [f"{idx}) {value}" for idx, value in enumerate(unique_values, start=1)]
-        return {
-            "mode": "clarification_required",
-            "answer": "Encontré más de una opción. ¿Querés elegir una?",
-            "used_memories": used_memories,
-            "options": options,
-        }
-
-    value = unique_values[0]
-    if attribute == "favorite_color":
-        answer = f"Tu color favorito es {value}."
-    elif attribute == "favorite_food":
-        answer = f"Tu comida favorita es {value}."
-    else:
-        answer = f"Tu {attribute} es {value}."
-
-    return {
-        "mode": "answer",
-        "answer": answer,
-        "used_memories": used_memories,
-        "options": [],
-    }
+    return _build_value_answer(scoped_memories, entity, attribute)
 
 
-def save_chat_event(payload: ChatRequest, answer_text: str) -> str:
+def save_chat_event(payload: ChatRequest, answer_text: str) -> Optional[str]:
+    if not payload.save_interaction:
+        return None
+
     settings = get_user_llm_settings(payload.user_id)
     event_id = new_memory_id()
+
     chat_events_collection.document(event_id).set(
         {
             "id": event_id,
@@ -327,20 +479,27 @@ def save_chat_event(payload: ChatRequest, answer_text: str) -> str:
             "ttl_at": None,
         }
     )
+
     return event_id
 
 
-def maybe_store_semantic_memory(payload: ChatRequest, source_event_id: str, extracted=None) -> None:
+def maybe_store_semantic_memory(
+    payload: ChatRequest,
+    source_event_id: Optional[str],
+    extracted=None,
+) -> None:
     extracted = extracted or extract_structured_memory(payload.message)
     if not extracted:
         return
+
+    source_id = source_event_id or f"nosave-{new_memory_id()}"
 
     upsert_semantic_memory(
         user_id=payload.user_id,
         project=payload.project or "general",
         book_id=payload.book_id or "general",
         extracted=extracted,
-        source_event_id=source_event_id,
+        source_event_id=source_id,
     )
 
 
@@ -355,7 +514,11 @@ def _acknowledgement_for_memory(extracted) -> str:
 @router.post("/chat", response_model=ChatResponse)
 def chat(payload: ChatRequest):
     extracted = extract_structured_memory(payload.message)
-    is_statement = extracted is not None and "?" not in payload.message
+    normalized_message = normalize_text(payload.message)
+    is_statement = (
+        extracted is not None
+        and not _looks_like_question(normalized_message)
+    )
 
     if is_statement:
         answer = _acknowledgement_for_memory(extracted)
