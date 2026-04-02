@@ -97,5 +97,79 @@
       "insufficient_memory:",
       "answer:"
     ]
+  },
+  {
+    "name": "test_paraphrase_test_config",
+    "payload": {
+      "user_id": "martin",
+      "project": "memoria-guia",
+      "book_id": "general",
+      "save_interaction": true,
+      "message": "Decime la configuración de pruebas."
+    },
+    "expected_mode": "answer",
+    "expected_contains": [
+      "user_id=martin",
+      "project=memoria-guia"
+    ],
+    "forbidden_contains": [
+      "insufficient_memory:",
+      "answer:"
+    ]
+  },
+  {
+    "name": "test_paraphrase_missing_info_rule",
+    "payload": {
+      "user_id": "martin",
+      "project": "memoria-guia",
+      "book_id": "general",
+      "save_interaction": true,
+      "message": "Si no tengo suficiente información, qué hago?"
+    },
+    "expected_mode": "answer",
+    "expected_contains": [
+      "Si falta información, pedila."
+    ],
+    "forbidden_contains": [
+      "insufficient_memory:",
+      "answer:"
+    ]
+  },
+  {
+    "name": "test_paraphrase_ambiguity_rule",
+    "payload": {
+      "user_id": "martin",
+      "project": "memoria-guia",
+      "book_id": "general",
+      "save_interaction": true,
+      "message": "Si la consulta es ambigua, qué hago?"
+    },
+    "expected_mode": "answer",
+    "expected_contains": [
+      "Si hay ambigüedad, pedí aclaración."
+    ],
+    "forbidden_contains": [
+      "insufficient_memory:",
+      "answer:"
+    ]
+  },
+  {
+    "name": "test_paraphrase_summary",
+    "payload": {
+      "user_id": "martin",
+      "project": "memoria-guia",
+      "book_id": "general",
+      "save_interaction": true,
+      "message": "Qué sabes de memoria-guia y de martin?"
+    },
+    "expected_mode": "answer",
+    "expected_contains": [
+      "memoria-guia",
+      "martin"
+    ],
+    "forbidden_contains": [
+      "insufficient_memory:",
+      "answer:"
+    ]
   }
 ]
