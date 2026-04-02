@@ -96,6 +96,8 @@ def _asks_memory_summary(text: str) -> bool:
             "que sabes",
             "que tenes en memoria",
             "que tienes en memoria",
+            "que tenes guardado",
+            "que tienes guardado",
             "responde solo con lo que realmente tengas en memoria",
         ],
     )
@@ -150,6 +152,7 @@ def _guess_query_target(message: str) -> Optional[tuple[str, str]]:
             "consulta ambigua",
             "si la consulta es ambigua",
             "si es ambiguo",
+            "algo es ambiguo",
         ],
     ):
         return ("test_rule", "ask_clarification_on_ambiguity")
@@ -174,6 +177,7 @@ def _guess_query_target(message: str) -> Optional[tuple[str, str]]:
             "de mi",
             "sobre martin",
             "de martin",
+            "y martin",
             "del usuario martin",
         ],
     )
