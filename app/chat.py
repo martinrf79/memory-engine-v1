@@ -241,7 +241,17 @@ def _render_summary_answer(memories: list[dict], intro: str) -> dict:
             "options": ["Sí, guardar ahora", "No por ahora"],
         }
 
-    lines = []
+    config_map = {}
+    rule_map = {}
+    extra_lines = []
+
+    rule_templates = {
+        "avoid_user_id_default": "evitar usar user_id=default",
+        "do_not_invent": "no inventar",
+        "ask_for_missing_data": "si falta información, pedirla",
+        "ask_clarification_on_ambiguity": "si hay ambigüedad, pedir aclaración",
+    }
+
     for memory in sorted(
         scoped,
         key=lambda item: (
@@ -250,14 +260,58 @@ def _render_summary_answer(memories: list[dict], intro: str) -> dict:
             item.get("value_text", ""),
         ),
     ):
+        entity = memory.get("entity") or ""
+        attribute = memory.get("attribute") or ""
         value = (memory.get("value_text") or "").strip()
+
         if not value:
             continue
-        lines.append(f"{memory.get('attribute')}: {value}")
+
+        if entity == "test_config":
+            config_map[attribute] = value
+            continue
+
+        if entity == "test_rule" and attribute in rule_templates:
+            rule_map[attribute] = rule_templates[attribute]
+            continue
+
+        if entity == "user":
+            extra_lines.append(f"Sobre vos, recuerdo que {attribute} es {value}.")
+            continue
+
+        if entity == "project":
+            extra_lines.append(f"Sobre el proyecto, recuerdo que {attribute} es {value}.")
+            continue
+
+        extra_lines.append(f"{attribute}: {value}.")
+
+    parts = []
+
+    user_value = config_map.get("user_id")
+    project_value = config_map.get("project")
+    if user_value or project_value:
+        cfg = []
+        if user_value:
+            cfg.append(f"user_id={user_value}")
+        if project_value:
+            cfg.append(f"project={project_value}")
+        parts.append("La configuración de pruebas es " + " y ".join(cfg) + ".")
+
+    ordered_rule_keys = [
+        "avoid_user_id_default",
+        "do_not_invent",
+        "ask_for_missing_data",
+        "ask_clarification_on_ambiguity",
+    ]
+    rule_lines = [rule_map[key] for key in ordered_rule_keys if key in rule_map]
+    if rule_lines:
+        parts.append("Las reglas activas son: " + ", ".join(rule_lines) + ".")
+
+    parts.extend(extra_lines[:4])
 
     answer = intro
-    if lines:
-        answer += " " + " | ".join(lines[:5])
+    if parts:
+        answer += " " + " ".join(parts)
 
     used_memories = [_memory_to_used(memory).model_dump() for memory in scoped[:10]]
     return {
