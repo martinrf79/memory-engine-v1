@@ -90,8 +90,8 @@
     "expected_contains": [
       "memoria-guia",
       "martin",
-      "Si hay ambigüedad",
-      "Si falta información"
+      "si hay ambigüedad",
+      "si falta información"
     ],
     "forbidden_contains": [
       "insufficient_memory:",
