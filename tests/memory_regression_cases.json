@@ -171,5 +171,100 @@
       "insufficient_memory:",
       "answer:"
     ]
+  },
+  {
+    "name": "test_paraphrase_test_config_2",
+    "payload": {
+      "user_id": "martin",
+      "project": "memoria-guia",
+      "book_id": "general",
+      "save_interaction": true,
+      "message": "Cuál es la config de pruebas?"
+    },
+    "expected_mode": "answer",
+    "expected_contains": [
+      "user_id=martin",
+      "project=memoria-guia"
+    ],
+    "forbidden_contains": [
+      "insufficient_memory:",
+      "answer:"
+    ]
+  },
+  {
+    "name": "test_paraphrase_avoidances_2",
+    "payload": {
+      "user_id": "martin",
+      "project": "memoria-guia",
+      "book_id": "general",
+      "save_interaction": true,
+      "message": "Qué cosas tengo que evitar en estas pruebas?"
+    },
+    "expected_mode": "answer",
+    "expected_contains": [
+      "user_id=default",
+      "no inventes datos",
+      "si falta información, pedila",
+      "si hay ambigüedad, pedí aclaración"
+    ],
+    "forbidden_contains": [
+      "insufficient_memory:",
+      "answer:"
+    ]
+  },
+  {
+    "name": "test_paraphrase_missing_info_rule_2",
+    "payload": {
+      "user_id": "martin",
+      "project": "memoria-guia",
+      "book_id": "general",
+      "save_interaction": true,
+      "message": "Si me falta información, cómo procedo?"
+    },
+    "expected_mode": "answer",
+    "expected_contains": [
+      "Si falta información, pedila."
+    ],
+    "forbidden_contains": [
+      "insufficient_memory:",
+      "answer:"
+    ]
+  },
+  {
+    "name": "test_paraphrase_ambiguity_rule_2",
+    "payload": {
+      "user_id": "martin",
+      "project": "memoria-guia",
+      "book_id": "general",
+      "save_interaction": true,
+      "message": "Si algo es ambiguo, cómo tengo que actuar?"
+    },
+    "expected_mode": "answer",
+    "expected_contains": [
+      "Si hay ambigüedad, pedí aclaración."
+    ],
+    "forbidden_contains": [
+      "insufficient_memory:",
+      "answer:"
+    ]
+  },
+  {
+    "name": "test_paraphrase_summary_2",
+    "payload": {
+      "user_id": "martin",
+      "project": "memoria-guia",
+      "book_id": "general",
+      "save_interaction": true,
+      "message": "Qué tenés guardado sobre memoria-guia y martin?"
+    },
+    "expected_mode": "answer",
+    "expected_contains": [
+      "memoria-guia",
+      "martin"
+    ],
+    "forbidden_contains": [
+      "insufficient_memory:",
+      "answer:"
+    ]
   }
 ]
