@@ -1,0 +1,86 @@
+[
+  {
+    "name": "favorite_color_roundtrip",
+    "setup_message": "Mi color favorito es azul",
+    "ask_message": "¿Cuál es mi color favorito?",
+    "expected_mode": "answer",
+    "answer_must_contain": [
+      "azul"
+    ]
+  },
+  {
+    "name": "favorite_food_paraphrase_roundtrip",
+    "setup_message": "Anotá que mi comida preferida es la pizza",
+    "ask_message": "¿Qué me gusta comer?",
+    "expected_mode": "answer",
+    "answer_must_contain": [
+      "pizza"
+    ]
+  },
+  {
+    "name": "test_config_seed_answer",
+    "seed_operational": true,
+    "ask_message": "¿Cuál es el user_id y project de pruebas?",
+    "expected_mode": "answer",
+    "answer_must_contain": [
+      "user_id=martin",
+      "project=memoria-guia"
+    ]
+  },
+  {
+    "name": "avoidances_seed_answer",
+    "seed_operational": true,
+    "ask_message": "¿Hay algo importante que deba evitar al probar este backend?",
+    "expected_mode": "answer",
+    "answer_must_contain": [
+      "user_id=default",
+      "no inventes"
+    ]
+  },
+  {
+    "name": "favorite_color_with_punctuation_roundtrip",
+    "setup_message": "Mi color favorito es azul!",
+    "ask_message": "¿Qué color prefiero?",
+    "expected_mode": "answer",
+    "answer_must_contain": [
+      "azul"
+    ]
+  },
+  {
+    "name": "negative_color_not_stored",
+    "setup_message": "Hoy no me gusta el color azul",
+    "ask_message": "¿Cuál es mi color favorito?",
+    "expected_mode": "insufficient_memory",
+    "answer_must_contain": [
+      "No tengo ese dato todavía"
+    ]
+  },
+  {
+    "name": "negative_food_not_stored",
+    "setup_message": "Anotá que no me gusta comer pizza",
+    "ask_message": "¿Cuál es mi comida favorita?",
+    "expected_mode": "insufficient_memory",
+    "answer_must_contain": [
+      "No tengo ese dato todavía"
+    ]
+  },
+  {
+    "name": "chat_rule_no_inventar_is_retrievable",
+    "setup_message": "No inventar",
+    "ask_message": "¿Hay algo importante que deba evitar al probar este backend?",
+    "expected_mode": "answer",
+    "answer_must_contain": [
+      "no inventes datos"
+    ]
+  },
+  {
+    "name": "project_summary_paraphrase",
+    "seed_operational": true,
+    "ask_message": "Dame un resumen del proyecto",
+    "expected_mode": "answer",
+    "answer_must_contain": [
+      "Recuerdo esto de este proyecto",
+      "user_id: martin"
+    ]
+  }
+]

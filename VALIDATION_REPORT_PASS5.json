@@ -1,0 +1,16 @@
+{
+  "suite": "pass5-generalized-backend",
+  "pytest": {
+    "passed": 93,
+    "deselected": 7
+  },
+  "new_capabilities": [
+    "producers",
+    "products",
+    "passports",
+    "documents",
+    "retrieval_traces",
+    "support_access_workflow"
+  ],
+  "notes": "Structured product/passport state now coexists with memory/chat core."
+}

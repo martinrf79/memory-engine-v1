@@ -1,0 +1,27 @@
+name: deploy-memory-engine
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/1000939441597/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-deploy@memory-engine-v1.iam.gserviceaccount.com
+
+      - uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: memory-engine-v11-backend-mcp
+          region: southamerica-east1
+          source: .

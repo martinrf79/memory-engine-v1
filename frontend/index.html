@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Memory Engine | Panel</title>
+    <link rel="stylesheet" href="/ui/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Memory Engine</p>
+          <h1>Panel de memoria</h1>
+          <p class="subtle">Conectá tu memoria, revisá su estado y usala sin exponer su contenido interno.</p>
+        </div>
+        <div class="status-chip" id="healthChip" aria-live="polite">Comprobando servicio…</div>
+      </header>
+
+      <div id="banner" class="banner hidden" role="status" aria-live="polite"></div>
+
+      <main class="grid">
+        <section class="card" id="authCard" aria-labelledby="authHeading">
+          <div class="card-head">
+            <h2 id="authHeading">Acceso al panel</h2>
+            <p>Entrá con tu usuario y contraseña. Si todavía no tenés acceso, podés crear una cuenta inicial desde acá.</p>
+          </div>
+          <div class="auth-grid">
+            <form id="loginForm" class="stack" novalidate>
+              <h3>Iniciar sesión</h3>
+              <label>
+                <span>Usuario</span>
+                <input id="loginUserId" type="text" autocomplete="username" required />
+              </label>
+              <label>
+                <span>Contraseña</span>
+                <input id="loginPassword" type="password" autocomplete="current-password" required minlength="8" />
+              </label>
+              <button class="primary" id="loginSubmit" type="submit">Entrar</button>
+            </form>
+
+            <form id="registerForm" class="stack" novalidate>
+              <h3>Crear acceso</h3>
+              <label>
+                <span>Usuario</span>
+                <input id="registerUserId" type="text" autocomplete="username" required />
+              </label>
+              <label>
+                <span>Contraseña</span>
+                <input id="registerPassword" type="password" autocomplete="new-password" required minlength="8" />
+              </label>
+              <label>
+                <span>Proyecto inicial</span>
+                <input id="registerProject" type="text" value="memoria-guia" required />
+              </label>
+              <button class="secondary" id="registerSubmit" type="submit">Crear cuenta</button>
+            </form>
+          </div>
+        </section>
+
+        <section class="card hidden" id="dashboardCard" aria-labelledby="dashboardHeading">
+          <div class="card-head inline">
+            <div>
+              <h2 id="dashboardHeading">Estado de tu memoria</h2>
+              <p>Vista de control. No muestra recuerdos ni contenido interno.</p>
+            </div>
+            <button class="ghost" id="logoutBtn" type="button">Salir</button>
+          </div>
+
+          <div class="banner info hidden" id="sessionNote" aria-live="polite"></div>
+
+          <div class="stats-grid">
+            <article class="stat">
+              <span>Usuario</span>
+              <strong id="userIdValue">-</strong>
+            </article>
+            <article class="stat">
+              <span>Proyecto activo</span>
+              <strong id="projectValue">-</strong>
+            </article>
+            <article class="stat">
+              <span>Memoria</span>
+              <strong id="memoryStatusValue">-</strong>
+            </article>
+            <article class="stat">
+              <span>Proveedor</span>
+              <strong id="providerValue">-</strong>
+            </article>
+          </div>
+
+          <div class="stack compact top-gap">
+            <label>
+              <span>Proyecto</span>
+              <select id="projectSelect"></select>
+            </label>
+            <p id="projectEmpty" class="subtle hidden">Todavía no tenés proyectos. Creá uno para continuar.</p>
+            <form id="projectForm" class="row-form" novalidate>
+              <input id="newProjectInput" type="text" placeholder="Crear proyecto" />
+              <button class="ghost" id="projectSubmit" type="submit">Agregar</button>
+            </form>
+          </div>
+
+          <div class="actions-row">
+            <button class="secondary" id="pauseBtn" type="button">Pausar</button>
+            <button class="secondary" id="resumeBtn" type="button">Reactivar</button>
+            <button class="danger" id="disconnectBtn" type="button">Desconectar</button>
+          </div>
+        </section>
+
+        <section class="card hidden" id="providersCard" aria-labelledby="providersHeading">
+          <div class="card-head">
+            <h2 id="providersHeading">Conectar proveedor</h2>
+            <p>Elegí cómo querés dejar preparada la conexión de tu memoria.</p>
+          </div>
+          <div class="banner info hidden" id="connectorState" aria-live="polite"></div>
+          <div class="provider-list" id="providerList"></div>
+          <div class="card-head top-gap">
+            <h3>URLs de conexión</h3>
+            <p>Copiá la URL según el proveedor. ChatGPT y Claude usan MCP; Gemini y DeepSeek usan tool calling.</p>
+          </div>
+          <div class="stack compact">
+            <label>
+              <span>MCP recomendado</span>
+              <input id="mcpConnectorUrl" type="text" readonly />
+            </label>
+            <label>
+              <span>MCP HTTP / RPC</span>
+              <input id="mcpHttpUrl" type="text" readonly />
+            </label>
+            <label>
+              <span>Manifest tool calling</span>
+              <input id="toolCallingManifestUrl" type="text" readonly />
+            </label>
+            <label>
+              <span>Call tool calling</span>
+              <input id="toolCallingCallUrl" type="text" readonly />
+            </label>
+          </div>
+        </section>
+
+        <section class="card hidden" id="chatCard" aria-labelledby="chatHeading">
+          <div class="card-head">
+            <h2 id="chatHeading">Prueba rápida del chat</h2>
+            <p>Usá el flujo del panel. La memoria se aplica por detrás sin exponer contenido interno.</p>
+          </div>
+          <form id="chatForm" class="stack" novalidate>
+            <label>
+              <span>Mensaje</span>
+              <textarea id="messageInput" rows="4" placeholder="Escribí una consulta de prueba…" required></textarea>
+            </label>
+            <label class="inline-check"><input id="rememberToggle" type="checkbox" /> <span>Guardar también como memoria</span></label>
+            <button class="primary" id="chatSubmit" type="submit">Enviar</button>
+          </form>
+          <div class="response-box" id="chatResponse">Todavía no hay respuestas.</div>
+
+          <div class="card-head top-gap">
+            <h3>Guardar memoria manual</h3>
+            <p>Para datos nuevos que querés recordar aunque no sean una consulta.</p>
+          </div>
+          <form id="manualMemoryForm" class="stack" novalidate>
+            <label>
+              <span>Dato para guardar</span>
+              <textarea id="manualMemoryInput" rows="4" placeholder="Ejemplo: Mi primo es de Río Tercero." required></textarea>
+            </label>
+            <button class="secondary" id="manualMemorySubmit" type="submit">Guardar memoria</button>
+          </form>
+          <div class="response-box" id="manualMemoryResponse">Todavía no guardaste memorias manuales desde este panel.</div>
+        </section>
+
+        <section class="card hidden" id="supportCard">
+          <div class="card-head">
+            <h2>Privacidad y soporte</h2>
+          </div>
+          <ul class="bullets">
+            <li>Tu panel está pensado para conexión y control, no para leer la memoria interna.</li>
+            <li>La memoria se usa internamente para darte continuidad y mejores respuestas.</li>
+            <li>En el uso normal, el contenido no está expuesto como un panel de lectura diaria.</li>
+          </ul>
+        </section>
+      </main>
+    </div>
+
+    <template id="providerTemplate">
+      <article class="provider-card">
+        <div>
+          <h3 class="provider-title"></h3>
+          <p class="provider-meta"></p>
+        </div>
+        <button class="primary provider-connect" type="button">Conectar</button>
+      </article>
+    </template>
+
+    <script src="/ui/app.js"></script>
+  </body>
+</html>
