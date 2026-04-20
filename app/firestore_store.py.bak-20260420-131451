@@ -165,15 +165,3 @@ session_summaries_collection = get_collection("session_summaries")
 
 # Backward-compatible aliases.
 collection = semantic_collection
-
-# --- Memory Engine V2 additions ---
-memory_entries_collection = get_collection("memory_entries")
-
-
-def get_firestore_client():
-    """
-    Devuelve el cliente Firestore subyacente para usos avanzados
-    (ej: vector search, transacciones custom).
-    Si está en modo fake, devuelve el fake DB (que expone .collection() compatible).
-    """
-    return db

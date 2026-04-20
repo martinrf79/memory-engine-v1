@@ -276,48 +276,17 @@ def panel_chat(payload: PanelChatRequest, principal: SessionPrincipal = Depends(
     docs = projects_collection.where("user_id", "==", principal.user_id).where("project", "==", payload.project).stream()
     if not list(docs):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="project_forbidden")
+    from app.chat import ChatRequest, chat
 
-    from app.panel_memory_core import is_question
-    message_is_question = is_question(payload.message)
-
-    # 1) Si es pregunta → intentar responder desde memoria V2 (embeddings + facts).
-    if message_is_question:
-        fallback = panel_chat_fallback(
-            user_id=principal.user_id,
-            project=payload.project,
-            book_id=payload.book_id,
-            message=payload.message,
-        )
-        if fallback is not None:
-            return fallback
-
-    # 2) Si NO es pregunta y toggle remember → guardar como memoria.
-    if payload.remember and not message_is_question:
-        result = store_panel_manual_memory(
+    request = ChatRequest(user_id=principal.user_id, project=payload.project, book_id=payload.book_id, message=payload.message, remember=payload.remember)
+    response = chat(request)
+    if payload.remember and "?" not in payload.message and "¿" not in payload.message:
+        store_panel_manual_memory(
             user_id=principal.user_id,
             project=payload.project,
             book_id=payload.book_id,
             content=payload.message,
         )
-        return {
-            "mode": result.get("mode", "stored"),
-            "answer": result.get("message", "Memoria guardada."),
-            "used_memories": [],
-            "options": [],
-        }
-
-    # 3) Caso restante: chat legacy como último recurso (sigue funcionando vía MCP).
-    from app.chat import ChatRequest, chat
-    request = ChatRequest(
-        user_id=principal.user_id,
-        project=payload.project,
-        book_id=payload.book_id,
-        message=payload.message,
-        remember=payload.remember,
-    )
-    response = chat(request)
-
-    # Si legacy devuelve poco, reintentamos fallback una vez más.
     if response.get("mode") in {"clarification_required", "insufficient_memory"}:
         fallback = panel_chat_fallback(
             user_id=principal.user_id,

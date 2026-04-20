@@ -5,3 +5,8 @@ pydantic-settings==2.13.1
 sqlalchemy==2.0.48
 google-cloud-firestore==2.23.0
 httpx==0.28.1
+
+# Memory Engine V2 — opcionales. Si no hay API key, no se cargan y el sistema
+# funciona en modo fallback (regex + hashing embeddings).
+google-generativeai==0.8.3
+anthropic==0.39.0
